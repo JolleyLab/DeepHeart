@@ -14,6 +14,6 @@ This work was partially supported by:
 
 - National Heart, Blood, and Lung Institute (NHLBI) R01 HL153166
 - Children's Hospital of Philadelphia Frontier Grant (Pediatric Valve Center)
-- Cora Topolewski Cardiac Research Fund At Children’s Hospital of Philadelphia
-- Department of Anesthesia and Critical Care at The Children’s Hospital of Philadelphia(CHOP)
+- Cora Topolewski Cardiac Research Fund At the Children’s Hospital of Philadelphia
+- Department of Anesthesia and Critical Care at the Children’s Hospital of Philadelphia(CHOP)
 
