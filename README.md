@@ -8,4 +8,12 @@ Repository for deployment of and infrastructure supporting deep learning network
   - Christian Herz, <email>HERZC@chop.edu</email>
   - Matthew Jolley, <email>jolleym@email.chop.edu</email>
 
- 
+ # Acknowledgments
+
+This work was partially supported by:
+
+- National Heart, Blood, and Lung Institute (NHLBI) (R01 HL153166)
+- CHOP Frontier Grant (Pediatric Valve Center)
+- Cora Topolewski Cardiac Research Fund At Children’s Hospital of Philadelphia
+- Department of Anesthesia and Critical Care at The Children’s Hospital of Philadelphia(CHOP)
+
