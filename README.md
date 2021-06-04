@@ -7,5 +7,5 @@ Repository for deployment of and infrastructure supporting deep learning network
 - Contacts:
   - Christian Herz, <email>HERZC@chop.edu</email>
   - Matthew Jolley, <email>jolleym@email.chop.edu</email>
-  - 
+
  
