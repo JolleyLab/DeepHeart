@@ -5,7 +5,7 @@ Repository for deployment of and infrastructure supporting deep learning network
 
 - Authors: Christian Herz (CHOP), Danielle Pace (MIT), Andras Lasso (PerkLab, Queen's University), Matthew Jolley (CHOP/UPenn)
 - Contacts:
-  - Christian Herz, <email>HERZC@chop.edu</email>
+  - Christian Herz, <email>herzc@email.chop.edu</email>
   - Matthew Jolley, <email>jolleym@email.chop.edu</email>
 
  # Acknowledgments
