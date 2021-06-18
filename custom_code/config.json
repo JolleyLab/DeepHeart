@@ -1,0 +1,131 @@
+{
+    "name": "monai_test_old_code",
+    "n_gpu": 2,
+    "mixed_precision": true,
+    "arch": {
+        "type": "VNET",
+        "args": {
+            "n_channels": 2,
+            "n_classes": 4,
+            "n_filters": 16,
+            "depth": 5,
+            "normalization": "batchnorm"
+        }
+    },
+    "data_augmentation": [
+        {
+            "args": {
+                "execution_probability": 0.5,
+                "fields": [
+                    "mid-systolic-images",
+                    "labels",
+                    "annuli"
+                ],
+                "rotation_range": 30,
+                "shift_range": 50,
+                "zoom_range": 0.1
+            },
+            "type": "AffineTransform"
+        },
+        {
+            "args": {
+                "execution_probability": 0.5,
+                "factor": 0.3,
+                "fields": [
+                    "mid-systolic-images"
+                ]
+            },
+            "type": "RandomContrast"
+        },
+        {
+            "args": {
+                "execution_probability": 0.5,
+                "fields": [
+                    "mid-systolic-images"
+                ],
+                "max_percentile": 99,
+                "min_percentile": 2
+            },
+            "type": "HistogramClipping"
+        }
+    ],
+    "data_loader": {
+        "data_dir": "/data/in/DL_DATA_224_224_224_6_vox_min_tricuspid",
+        "batch_size": 8,
+        "shuffle": true,
+        "validation_split": 0.1,
+        "num_workers": 8,
+        "inputs": [
+            {
+                "field": "mid-systolic-images",
+                "input_type": "image",
+                "output_type": "image"
+            },
+            {
+                "field": "annuli",
+                "input_type": "label",
+                "n_classes": 2,
+                "output_type": "distmap"
+            },
+            {
+                "field": "labels",
+                "input_type": "label",
+                "output_type": "onehot",
+                "n_classes": 4
+            }
+        ]
+    },
+    "optimizer": {
+        "type": "RAdam",
+        "args": {
+            "lr": 0.02,
+            "weight_decay": 1e-05
+        }
+    },
+    "lr_scheduler": {
+        "type": "ReduceLROnPlateau",
+        "args": {
+            "factor": 0.5,
+            "patience": 3,
+            "verbose": 1
+        }
+    },
+    "loss": {
+        "type": "DicePlusConstantCatCrossEntropyLoss",
+        "args": {
+            "boundaries_weight_factor": 50,
+            "boundaries_pool": 3,
+            "sigma": 0.02
+        }
+    },
+    "metrics": [
+        {
+            "type": "Dice",
+            "args": {
+                "per_class": true,
+                "training": true
+            }
+        },
+        {
+            "type": "ACC",
+            "args": {
+                "is_multilabel": true,
+                "training": true
+            }
+        }
+    ],
+    "trainer": {
+        "module": "trainers.border_trainer",
+        "input_field": "images",
+        "output_field": "labels",
+        "epochs": 200,
+        "save_period": 5,
+        "verbosity": 2,
+        "monitor": "max val_Dice_avg",
+        "early_stop": 20,
+        "tensorboardX": true,
+        "save_dir": "/home/herzc/saved/",
+        "log_dir": "/home/herzc/saved/runs"
+    },
+    "source_code_directory": "/home/herzc/sources/DeepHeartPrivate/source"
+}
