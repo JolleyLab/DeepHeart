@@ -1,0 +1,22 @@
+---
+version: 1
+name: Segmentation Tricuspid Valve
+description: MONAI Label App for segmentation of the tricuspid valve from 3DE images
+dimension: 3
+labels:
+  - anterior
+  - posterior
+  - septal
+config:
+  infer:
+    device: cuda
+  train:
+    name: model_01
+    pretrained: True
+    device: cuda
+    amp: true
+    lr: 0.02
+    epochs: 200
+    val_split: 0.1
+    train_batch_size: 8
+    val_batch_size: 8
