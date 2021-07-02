@@ -20,19 +20,23 @@ def get_list_of_file_names(directory: Path, ext: str = 'nii.gz', absolute_path: 
 
 
 def is_one_hot(t, axis=1) -> bool:
+    """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
     return simplex(t, axis) and sset(t, [0, 1])
 
 
 def sset(a, sub) -> bool:
+    """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
     return uniq(a).issubset(sub)
 
 
 def uniq(a) -> set:
+    """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
     import torch
     return set(torch.unique(a.cpu()).numpy())
 
 
 def simplex(t, axis: int = 1) -> bool:
+    """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
     import torch
     _sum = t.sum(axis).type(torch.float32)
     _ones = torch.ones_like(_sum, dtype=torch.float32)

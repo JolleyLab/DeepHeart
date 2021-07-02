@@ -8,22 +8,24 @@ logger = logging.getLogger(__name__)
 
 
 def simplex(t, axis: int = 1) -> bool:
-  import torch
+  """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
   _sum = t.sum(axis).type(torch.float32)
   _ones = torch.ones_like(_sum, dtype=torch.float32)
   return torch.allclose(_sum, _ones)
 
 
 def is_one_hot(t, axis=1) -> bool:
+  """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
   return simplex(t, axis) and sset(t, [0, 1])
 
 
 def sset(a, sub) -> bool:
+  """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
   return uniq(a).issubset(sub)
 
 
 def uniq(a) -> set:
-  import torch
+  """ source: https://github.com/LIVIAETS/boundary-loss/blob/master/utils.py """
   return set(torch.unique(a.cpu()).numpy())
 
 
