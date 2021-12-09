@@ -20,3 +20,6 @@ This work was partially supported by:
 - Department of Anesthesia and Critical Care at the Children’s Hospital of Philadelphia(CHOP)
 
 
+# References
+
+1. Herz C, Pace DF, Nam HH, Lasso A, Dinh P, Flynn M, Cianciulli A, Golland P, Jolley MA. Segmentation of Tricuspid Valve Leaflets From Transthoracic 3D Echocardiograms of Children With Hypoplastic Left Heart Syndrome Using Deep Learning. Frontiers in Cardiovascular Medicine (2021) 8:1839. https://doi.org/10.3389/fcvm.2021.735587
