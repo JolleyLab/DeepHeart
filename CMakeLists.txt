@@ -7,7 +7,7 @@ project(DeepHeart)
 set(EXTENSION_CATEGORY "Cardiac")
 set(EXTENSION_CONTRIBUTORS "Christian Herz (CHOP), Andras Lasso (PerkLab, Queen's), Matthew Jolley (CHOP)")
 set(EXTENSION_DESCRIPTION "Modules for the segmentation of heart valves using DeepLearning")
-set(EXTENSION_DEPENDS SlicerHeart)
+set(EXTENSION_DEPENDS SlicerHeart MONAILabel)
 
 #-----------------------------------------------------------------------------
 # Extension dependencies
@@ -17,6 +17,7 @@ include(${Slicer_USE_FILE})
 #-----------------------------------------------------------------------------
 # Extension modules
 add_subdirectory(slicer/DeepHeart)
+add_subdirectory(slicer/ExportHeartData)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
