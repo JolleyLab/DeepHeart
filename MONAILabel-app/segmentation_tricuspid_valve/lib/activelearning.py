@@ -1,7 +1,7 @@
 import logging
 
-from monailabel.interfaces import Datastore
-from monailabel.interfaces.tasks import Strategy
+from monailabel.interfaces.datastore import Datastore
+from monailabel.interfaces.tasks.strategy import Strategy
 
 logger = logging.getLogger(__name__)
 

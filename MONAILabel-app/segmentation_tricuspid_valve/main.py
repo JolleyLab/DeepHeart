@@ -1,62 +1,72 @@
-import json
 import logging
 import os
+from pathlib import Path
 
-from lib import MyInfer, MyStrategy, VNet
+from lib import VNet
+from lib.infer import *
 
-from monailabel.interfaces import MONAILabelApp
-from monailabel.utils.activelearning import Random
+from monailabel.interfaces.app import MONAILabelApp
+from distutils.util import strtobool
 
 logger = logging.getLogger(__name__)
 
 
 class MyApp(MONAILabelApp):
-    def __init__(self, app_dir, studies):
+
+    def __init__(self, app_dir, studies, conf):
         self.model_dir = os.path.join(app_dir, "model")
-        # TODO: depending on selected model, a different network needs to be selected
-        self.network = VNet(
-            n_channels=2,
+        import torch
+        self.device = 'GPU' if torch.cuda.is_available() else 'CPU'
+        print(f"Using {self.device}")
+
+        description = "TODO"
+
+        super().__init__(
+            app_dir=app_dir,
+            studies=studies,
+            conf=conf,
+            name="Valve Segmentation",
+            version="0.1",
+            description=description
+        )
+
+    def init_infers(self):
+        model_dir = Path(self.model_dir)
+
+        network_params = dict(
             n_classes=4,
             n_filters=16,
             normalization="batchnorm"
         )
 
-        self.pretrained_model = os.path.join(self.model_dir, "segmentation_tricuspid_valve.pt")
-        self.final_model = os.path.join(self.model_dir, "final.pt")
-        self.train_stats_path = os.path.join(self.model_dir, "train_stats.json")
-
-        path = [self.pretrained_model, self.final_model]
-        infers = {
-            "segmentation_tricuspid_valve": MyInfer(path, self.network),
-        }
-
-        strategies = {
-            "random": Random(),
-            "first": MyStrategy(),
-        }
-
-        resources = [
-            (
-                self.pretrained_model,
-                # "https://api.ngc.nvidia.com/v2/models/nvidia/med"
-                # "/clara_pt_liver_and_tumor_ct_segmentation/versions/1/files/models/model.pt",
-            ),
+        model_paths = [
+            str(model_dir / f"tricuspid_ms_ann_{self.device}.pt"),
+            str(model_dir / f"tricuspid_ms_md_ann_{self.device}.pt"),
+            str(model_dir / f"tricuspid_ms_ann_com_{self.device}.pt"),
+            str(model_dir / f"tricuspid_ms_md_ann_com_{self.device}.pt"),
+            str(model_dir / f"tricuspid_ms_md_ann_com_single_label_{self.device}.pt"),
         ]
 
-        super().__init__(
-            app_dir=app_dir,
-            studies=studies,
-            infers=infers,
-            strategies=strategies,
-            resources=resources,
-        )
+        if strtobool(self.conf.get("use_pretrained_model", "true")) is True:
+            # logger.info(f"Pretrained Model Path: {pretrained_model_uri}")
+            self.download(model_paths)
+
+        return {
+            "Mid-Systole__Annulus":
+                TricuspidInferenceTaskSinglePhaseAnn(model_paths[0], VNet(**network_params, n_channels=2)),
+            # "Mid-Systole__Mid-Diastole__Annulus":
+            #     TricuspidInferenceTaskTwoPhaseAnn(model_paths[1], VNet(**network_params, n_channels=3)),
+            "Mid-Systole__Annulus__Commissures":
+                TricuspidInferenceTaskSinglePhaseAnnCom(model_paths[2], VNet(**network_params, n_channels=5)),
+            "Mid-Systole__Mid-Diastole__Annulus__Commissures":
+                TricuspidInferenceTaskTwoPhaseAnnCom(model_paths[3], VNet(**network_params, n_channels=6)),
+            # "Mid-Systole__Mid-Diastole__Annulus__Commissures__Alt":
+            #     TricuspidInferenceTaskTwoPhaseAnnComOneLabel(model_paths[4], VNet(**network_params, n_channels=4)),
+        }
+
+    def init_strategies(self):
+        return {}
 
     def train(self, request):
-        pass
+        return {}
 
-    def train_stats(self):
-
-        if os.path.exists(self.train_stats_path):
-            with open(self.train_stats_path, "r") as fc:
-                return json.load(fc)
-        return super().train_stats()

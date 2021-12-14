@@ -167,7 +167,7 @@ class VNETDecoder(nn.Module):
                 decoder["x{}_up".format(level)] = x + encoder["x{}_enc".format(level - 1)]
 
         out_logits = self.out_conv(x)
-        return torch.nn.functional.softmax(out_logits.reshape(out_logits.size(0), out_logits.size(1), -1), dim=1).view_as(out_logits)
+        return out_logits
 
 
 class VNet(nn.Module):

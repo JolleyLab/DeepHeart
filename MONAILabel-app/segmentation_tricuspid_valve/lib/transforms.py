@@ -1,5 +1,7 @@
 import logging
 from monai.transforms import MapTransform
+from monai.utils.enums import TransformBackends
+
 import SimpleITK as sitk
 import numpy as np
 import torch
@@ -131,3 +133,40 @@ class DistanceTransformd(MapTransform):
       result_np = self.one_hot_to_dist(one_hot).astype(np.float32)
       data[key] = result_np[1:, ...]
     return data
+
+
+
+class MergeLabelsd(MapTransform):
+    """
+    Merge items from data dictionary into single label.
+    Expect all the items are numpy array.
+    """
+
+    backend = [TransformBackends.NUMPY]
+
+    def __init__(self, keys, name, allow_missing_keys=False):
+        """
+        Args:
+            keys: keys of the corresponding items to be concatenated together.
+                See also: :py:class:`monai.transforms.compose.MapTransform`
+            name: the name corresponding to the key to store the reduced data.
+            allow_missing_keys: don't raise exception if key is missing.
+        """
+        super().__init__(keys, allow_missing_keys)
+        self.name = name
+
+    def __call__(self, data):
+        d = dict(data)
+        output = []
+        data_type = None
+        for key in self.key_iterator(d):
+            if data_type is None:
+                data_type = type(d[key])
+            elif not isinstance(d[key], data_type):
+                raise TypeError("All items in data must have the same type.")
+            output.append(d[key])
+        import functools
+        out = functools.reduce(lambda a, b: np.logical_or(a,b), output).astype(int)
+        # print(f"shape: {out.shape}, min: {out.min()}, max: {out.max()}, unique: {np.unique(out)}")
+        d[self.name] = out
+        return d
