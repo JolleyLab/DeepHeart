@@ -3,20 +3,31 @@ import logging
 import slicer
 from ExportHeartDataLib.constants import APPLICATION_NAME
 from ExportHeartDataLib.summary import ExportSummary
+from HeartValveLib.helpers import getValvePhaseShortName
 
 
 class ExportBuilder(object):
 
-   def __init__(self):
-     self._items = []
+  def __init__(self):
+    self._items = []
 
-   def add_export_item(self, item) -> None:
-     assert isinstance(item, ExportItem)
-     self._items.append(item)
+  def add_export_item(self, item) -> None:
+    assert isinstance(item, ExportItem)
+    self._items.append(item)
 
-   def export(self):
-     for item in self._items:
-       item()
+  def export(self):
+    for item in self._items:
+      item()
+
+  def requirementsSatisfied(self):
+    satisfied = []
+    messages = []
+    for item in self._items:
+      valid, message = item.verify()
+      satisfied.append(valid)
+      if message:
+        messages.append(message)
+    return all(satisfied), messages
 
 
 class ExportItem(ABC):
@@ -37,9 +48,7 @@ class ExportItem(ABC):
   @property
   def phase(self):
     assert self._valveModel is not None
-    cardiacPhase = self._valveModel.getCardiacCyclePhase()
-    cardiacCyclePhasePreset = self._valveModel.cardiacCyclePhasePresets[cardiacPhase]
-    return cardiacCyclePhasePreset['shortname']
+    return getValvePhaseShortName(self._valveModel)
 
   @staticmethod
   def getLogger():
@@ -65,4 +74,8 @@ class ExportItem(ABC):
   @abstractmethod
   def __call__(self):
     # before calling this, needs to check if necessary attributes were set
+    pass
+
+  @abstractmethod
+  def verify(self):
     pass

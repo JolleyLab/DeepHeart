@@ -15,8 +15,8 @@ from ExportHeartDataLib.summary import ExportSummary
 import ExportHeartDataLib.reference_volume as ReferenceVolume
 
 import HeartValveLib
-from HeartValveLib.helpers import getSpecificHeartValveModelNodes, getFirstValveModelNodeMatchingPhaseAndType, \
-  isMRBFile, getAllFilesWithExtension
+from HeartValveLib.helpers import getSpecificHeartValveModelNodesMatchingPhaseAndType, getFirstValveModelNodeMatchingPhaseAndType, \
+  isMRBFile, getAllFilesWithExtension, getValvePhaseShortName
 
 from typing import Optional
 
@@ -56,19 +56,23 @@ class Exporter(object):
 
   def __init__(self,
                valve_type : str,
-               phases: Optional[list],
+               cardiac_phase_frames: Optional[list],
                input_data=None,
                output_directory=None,
                voxel_spacing=None,
                volume_dimensions=None,
-               minimum_valve_voxel_height=None,
-               additional_frame_range=None,
-               export_landmarks=False,
                export_segmentation=False,
                one_file_per_segment=False,
+               segmentation_phases=None,
+               minimum_valve_voxel_height=None,
+               export_landmarks=False,
+               landmark_phases=None,
                landmark_labels=None,
+               landmark_label_phases=None,
                annulus_contour_label=False,
                annulus_contour_model=False,
+               annulus_phases=None,
+               additional_frame_range=None,
                run_quantification=False,
                save_log_file=False):
     """
@@ -76,19 +80,28 @@ class Exporter(object):
     """
     self.valveType = valve_type
     self.inputData = input_data
-    self.phases = phases
+
+    self.cardiacPhases = cardiac_phase_frames
+
     self.outputDir = output_directory
     self.voxelSpacing = voxel_spacing
     self.volumeDimensions = volume_dimensions
-
     self.minValveHeightVxl = minimum_valve_voxel_height
-    self.additionalFrameRange = additional_frame_range
-    self.annulusLabels = landmark_labels
-    self.exportLandmarks = export_landmarks
-    self.exportSegmentation = export_segmentation                # TODO: it might make sense to provide specific phases
+    self.exportSegmentation = export_segmentation
     self.oneFilePerSegment = one_file_per_segment
-    self.exportAnnulusContourLabel = annulus_contour_label     # TODO: it might make sense to provide specific phases
-    self.exportAnnulusContourModel = annulus_contour_model     # TODO: it might make sense to provide specific phases
+    self.segmentationPhases = segmentation_phases if segmentation_phases else self.cardiacPhases
+
+    self.annulusLabels = landmark_labels
+    self.annulusLabelPhases = landmark_label_phases if landmark_label_phases else self.cardiacPhases
+
+    self.exportLandmarks = export_landmarks
+    self.landmarkPhases = landmark_phases if landmark_phases else self.cardiacPhases
+
+    self.exportAnnulusContourLabel = annulus_contour_label
+    self.exportAnnulusContourModel = annulus_contour_model
+    self.annulusPhases = annulus_phases if annulus_phases else self.cardiacPhases
+
+    self.additionalFrameRange = additional_frame_range
     self.runQuantification = run_quantification
 
     self.saveLogs = save_log_file
@@ -141,8 +154,13 @@ class Exporter(object):
   def _processScene(self):
     try:
       if self.runQuantification:
-        computePhaseMetrics(self.phases[0])
-      self._composeAndRunExport()
+        computePhaseMetrics(self.cardiacPhases[0])
+      self._composeExport()
+      satisfied, messages = self._builder.requirementsSatisfied()
+      if satisfied:
+        self._builder.export()
+      else:
+        self.logger.error(messages)
     except Exception as exc:
       self.logger.info(f"Exception occurred while processing {ExportItem.prefix}")
       import traceback
@@ -155,10 +173,10 @@ class Exporter(object):
     except Exception as exc:
       self.logger.warning(exc)
 
-  def _composeAndRunExport(self):
-    mainValveModel = getFirstValveModelNodeMatchingPhaseAndType(self.phases[0], self._valveType)
-    ExportItem.probeToRasTransform = cloneMRMLNode(mainValveModel.getProbeToRasTransformNode())
-    self.initializeReferenceVolumeNode(mainValveModel)
+  def _composeExport(self):
+    referenceValveModel = getFirstValveModelNodeMatchingPhaseAndType(self.cardiacPhases[0], self._valveType)
+    ExportItem.probeToRasTransform = cloneMRMLNode(referenceValveModel.getProbeToRasTransformNode())
+    self.initializeReferenceVolumeNode(referenceValveModel)
 
     assert ExportItem.requiredAttributesSet()
 
@@ -166,37 +184,32 @@ class Exporter(object):
     self._builder = ExportBuilder()
 
     if self.additionalFrameRange:
-      print(f"Adding addition frame range {self.additionalFrameRange}")
-      self._builder.add_export_item(AdditionalFrames(mainValveModel, self.additionalFrameRange))
+      print(f"Adding addition frame range {self.additionalFrameRange} around {getValvePhaseShortName(referenceValveModel)}")
+      self._builder.add_export_item(AdditionalFrames(referenceValveModel, self.additionalFrameRange))
 
-    for valveModel in getSpecificHeartValveModelNodes(self.phases):
-      self._builder.add_export_item(PhaseFrame(valveModel, valveModel is mainValveModel))
-      self._builder.add_export_item(Annulus(valveModel, self.exportAnnulusContourLabel, self.exportAnnulusContourModel))
+    for valveModel in self._getRequestedValveModels():
+      self._builder.add_export_item(PhaseFrame(valveModel, valveModel is referenceValveModel))
+      phaseShortName = getValvePhaseShortName(valveModel)
 
-      if self.annulusLabels:
+      if (self.exportAnnulusContourLabel or self.exportAnnulusContourLabel) and phaseShortName in self.annulusPhases:
+        self._builder.add_export_item(Annulus(valveModel, self.exportAnnulusContourLabel, self.exportAnnulusContourModel))
+      if self.annulusLabels and phaseShortName in self.annulusLabelPhases:
         self._builder.add_export_item(LandmarkLabels(valveModel, self.annulusLabels))
-
-      if self.exportLandmarks:
+      if self.exportLandmarks and phaseShortName in self.landmarkPhases:
         self._builder.add_export_item(Landmarks(valveModel))
-
-      if self.exportSegmentation:
+      if self.exportSegmentation and phaseShortName in self.segmentationPhases:
         self._builder.add_export_item(Segmentation(valveModel, self.oneFilePerSegment))
 
-    self._builder.export()
-
-  def checkRequirements(self):
-    satisfied = True
-    messages = []
-
-    for phase in self.phases:
-      # load scene?
-      pass
-
-    # TODO: implement
-    # iterate over all user inputs
-    # e.g. start with making sure that all required phases are available
-
-    return satisfied, messages
+  def _getRequestedValveModels(self):
+    valveModels = getSpecificHeartValveModelNodesMatchingPhaseAndType(self.cardiacPhases, self._valveType)
+    if len(valveModels) != len(self.cardiacPhases):
+      raise ValueError(
+        f"""
+          Couldn't find valve models for cardiac phases {self.cardiacPhases} or found multiple in cardiac phase.
+          Found valve models with phases (in order): {[getValvePhaseShortName(m) for m in valveModels]}
+        """
+      )
+    return valveModels
 
   def initializeReferenceVolumeNode(self, valveModel):
     voxelSpacing = getFinalVoxelSpacing(self.voxelSpacing, self.minValveHeightVxl, valveModel)

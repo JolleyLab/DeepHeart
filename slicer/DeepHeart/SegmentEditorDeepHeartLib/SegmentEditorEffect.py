@@ -373,12 +373,6 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
     exporter = InferenceExporter(input_data=slicer.mrmlScene,
                                  output_directory=temp_dir,
                                  **exportSettings)
-    satisfied, messages = exporter.checkRequirements()
-    if not satisfied:
-      slicer.util.errorDisplay(
-        "Model requirements not satisfied", detailedText=messages
-      )
-      raise ValueError("Model requirements not satisfied")
     exported_dict = exporter.export()
 
     volumes = [exported_dict[key][0] for key in self.models[modelName]["config"]["export_keys"]]
@@ -392,24 +386,25 @@ class InferenceExporter(object):
   def __init__(self,
                valve_type,
                input_data=None,
-               phases=None,
+               cardiac_phase_frames=None,
                output_directory=None,
                voxel_spacing=None,
                volume_dimensions=None,
-               landmark_labels=None):
+               landmark_labels=None,
+               landmark_label_phases=None,
+               annulus_phases=None):
 
     from ExportHeartDataLib.export import Exporter
     self._exporter = Exporter(valve_type,
                               input_data=input_data,
-                              phases=phases,
+                              cardiac_phase_frames=cardiac_phase_frames,
                               output_directory=output_directory,
                               volume_dimensions=volume_dimensions,
                               voxel_spacing=voxel_spacing,
                               landmark_labels=landmark_labels,
-                              annulus_contour_label=True)
-
-  def checkRequirements(self):
-    return self._exporter.checkRequirements()
+                              landmark_label_phases=landmark_label_phases,
+                              annulus_contour_label=True,
+                              annulus_phases=annulus_phases)
 
   def export(self):
     return self._exporter.export()

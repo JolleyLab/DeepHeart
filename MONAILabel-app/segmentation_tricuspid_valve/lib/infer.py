@@ -66,8 +66,10 @@ class TricuspidInference(InferTask):
             "device": "cuda" if torch.cuda.is_available() else "cpu",
             "model_attributes": {
                 "valve_type": self.getValveType(),
-                "phases": self.getCardiacPhases(),
+                "cardiac_phase_frames": self.getCardiacPhaseFrames(),
                 "landmark_labels": self.getLandmarkLabels(),
+                "landmark_label_phases": self.getLandmarkLabelPhases(),
+                "annulus_phases": self.getAnnulusPhases(),
                 "volume_dimensions": self.getVolumeDimensions(),
                 "voxel_spacing": self.getVoxelSpacing()
             },
@@ -84,8 +86,14 @@ class TricuspidInference(InferTask):
         return 0.25
 
     @abstractmethod
-    def getCardiacPhases(self):
+    def getCardiacPhaseFrames(self):
         pass
+
+    def getLandmarkLabelPhases(self):
+        return ["MS"]
+
+    def getAnnulusPhases(self):
+        return ["MS"]
 
     @abstractmethod
     def getLandmarkLabels(self):
@@ -118,7 +126,7 @@ class TricuspidInferenceTaskSinglePhaseAnn(TricuspidInference):
     def getValveType(self):
         return "tricuspid"
 
-    def getCardiacPhases(self):
+    def getCardiacPhaseFrames(self):
         return ["MS"]
 
     def getExportKeys(self):
@@ -148,7 +156,7 @@ class TricuspidInferenceTaskTwoPhaseAnn(TricuspidInference):
       - annulus label
     """
 
-    def getCardiacPhases(self):
+    def getCardiacPhaseFrames(self):
         return ["MS", "MD"]
 
     def getExportKeys(self):
@@ -179,7 +187,7 @@ class TricuspidInferenceTaskSinglePhaseAnnCom(TricuspidInference):
       - commissure labels: "APC", "ASC", "PSC"
     """
 
-    def getCardiacPhases(self):
+    def getCardiacPhaseFrames(self):
         return ["MS"]
 
     def getLandmarkLabels(self):
@@ -218,7 +226,7 @@ class TricuspidInferenceTaskTwoPhaseAnnCom(TricuspidInference):
       - commissures labels: "APC", "ASC", "PSC"
     """
 
-    def getCardiacPhases(self):
+    def getCardiacPhaseFrames(self):
         return ["MS", "MD"]
 
     def getLandmarkLabels(self):

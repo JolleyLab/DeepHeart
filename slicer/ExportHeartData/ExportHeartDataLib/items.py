@@ -5,11 +5,17 @@ from ExportHeartDataLib.base import ExportItem
 from ExportHeartDataLib.utils import getSegmentationFromAnnulusContourNode, getLabelFromLandmarkPosition, \
   cloneMRMLNode, getResampledScalarVolume
 import ExportHeartDataLib.segmentation_utils as SegmentationHelper
+from HeartValveLib.helpers import getValvePhaseShortName
 
 
 class Landmarks(ExportItem):
 
   LANDMARKS_OUTPUT_DIR_NAME = "landmarks"
+
+  def verify(self):
+    valid = self._valveModel.getAnnulusLabelsMarkupNode() is not None
+    return valid, \
+           None if valid else f"No Annulus Labels Markup Node found for phase {getValvePhaseShortName(self._valveModel)}"
 
   def __init__(self, valveModel):
     super(Landmarks, self).__init__(valveModel)
@@ -24,6 +30,15 @@ class Landmarks(ExportItem):
 
 
 class LandmarkLabels(ExportItem):
+
+  def verify(self):
+    positions = self._valveModel.getAnnulusMarkupPositionsByLabels(self.landmarkLabels)
+    if all(pos is not None for pos in positions):
+      return True, None
+    else:
+      message = f"Found annulus landmark positions for phase {getValvePhaseShortName(self._valveModel)} are: " \
+                f"{[f'{a}={b}' for a,b in zip(self.landmarkLabels, positions)]}"
+      return False, message
 
   def __init__(self, valveModel, landmarkLabels):
     super(LandmarkLabels, self).__init__(valveModel)
@@ -48,6 +63,11 @@ class LandmarkLabels(ExportItem):
 class Segmentation(ExportItem):
 
   SEGMENTATION_OUTPUT_DIR_NAME = "segmentation"
+
+  def verify(self):
+    valid = self._valveModel.getLeafletSegmentationNode() is not None
+    return valid, None if valid else "No leaflet segmentation node could be found " \
+                                     "for phase {getValvePhaseShortName(self._valveModel)}"
 
   def __init__(self, valveModel, oneFilePerSegment):
     super(Segmentation, self).__init__(valveModel)
@@ -99,6 +119,11 @@ class Annulus(ExportItem):
   class AnnulusExportFailed(Exception):
     pass
 
+  def verify(self):
+    valid = self._valveModel.getAnnulusContourModelNode() is not None
+    return valid, None if valid else "No annulus contour model node could be found " \
+                                     "for phase {getValvePhaseShortName(self._valveModel)}"
+
   def __init__(self, valveModel, asLabel=False, asModel=False):
     super(Annulus, self).__init__(valveModel)
     self._outputFormats = []
@@ -113,15 +138,12 @@ class Annulus(ExportItem):
     outputDirectory.mkdir(parents=True, exist_ok=True)
     for outputFormat in self._outputFormats:
       if outputFormat == ".vtk":
-        node = self.getAnnulusModel()
+        node = self._valveModel.getAnnulusContourModelNode()
       else:
         node = self.getAnnulusLabel()
       outputFile = outputDirectory / f"{self.prefix}{outputFormat}"
       self.getLogger().debug(f"Exporting annulus to {outputFile}")
       self.saveNode(node, outputFile, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}")
-
-  def getAnnulusModel(self):
-    return self._valveModel.getAnnulusContourModelNode()
 
   def getAnnulusLabel(self):
     segNode = getSegmentationFromAnnulusContourNode(self._valveModel, self.referenceVolumeNode)
@@ -180,6 +202,14 @@ class PhaseFrame(ExportItem):
         return browserNode
     raise cls.NoSequenceBrowserNodeFound()
 
+  def verify(self):
+    try:
+      self.getAssociatedFrameNumber(self._valveModel)
+    except Exception as exc:
+      self.getLogger().error(exc)
+      return False, exc
+    return True, None
+
   def __init__(self, valveModel, isReferenceFrame=False):
     super(PhaseFrame, self).__init__(valveModel)
     self._isReferenceVolume = isReferenceFrame
@@ -205,8 +235,24 @@ class PhaseFrame(ExportItem):
 
 class AdditionalFrames(ExportItem):
 
-  def __init__(self, phase, frameRange):
-    super(AdditionalFrames, self).__init__(phase)
+  def verify(self):
+    associatedFrameNumber = PhaseFrame.getAssociatedFrameNumber(self._valveModel)
+    numFrames = PhaseFrame.getNumberOfSequenceFrames(self._valveModel)
+    lowEnd = associatedFrameNumber + self._additionalFrameRange[0]
+    upperEnd = associatedFrameNumber + self._additionalFrameRange[1] + 1
+    valid = lowEnd >= 0 and upperEnd < (numFrames -1)
+    if not valid:
+      message = f"Additional frame range invalid: \n " \
+                f"ValveModel associated frame: {associatedFrameNumber}\n" \
+                f"Number of frames in volume sequence: {numFrames}\n" \
+                f"Requested frames: {lowEnd} to {upperEnd}"
+      self.getLogger().warn(message)
+      return False, message
+    return True, None
+
+
+  def __init__(self, valveModel, frameRange):
+    super(AdditionalFrames, self).__init__(valveModel)
     self._additionalFrameRange = frameRange
 
   def __call__(self):
