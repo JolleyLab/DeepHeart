@@ -103,6 +103,7 @@ def getSegmentationFromAnnulusContourNode(valveModel, referenceVolume):
   annulusModelNode = cloneMRMLNode(valveModel.getAnnulusContourModelNode())
   annulusModelNode.SetAndObserveTransformNodeID(None)
   segmentationNode = SegmentationHelper.getNewSegmentationNodeFromModel(referenceVolume, annulusModelNode)
+  slicer.mrmlScene.RemoveNode(annulusModelNode)
   return segmentationNode
 
 
@@ -122,6 +123,7 @@ def getLabelFromLandmarkPosition(name, pos, referenceVolumeNode):
     spherePolyData)
   segNode.GetSegmentation().AddSegment(sphereSegment)
   labelNode = SegmentationHelper.createLabelNodeFromVisibleSegments(segNode, referenceVolumeNode, name)
+  slicer.mrmlScene.RemoveNode(segNode)
   return labelNode
 
 

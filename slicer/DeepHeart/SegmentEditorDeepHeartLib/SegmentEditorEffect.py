@@ -220,7 +220,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     try:
       import nibabel as nib
     except ImportError:
-      slicer.utils.pip_install("nibabel")
+      slicer.util.pip_install("nibabel")
 
     segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
     modelName = self.ui.segmentationModelSelector.currentText
