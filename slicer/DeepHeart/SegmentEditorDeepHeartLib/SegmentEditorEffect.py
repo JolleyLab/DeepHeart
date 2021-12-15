@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory, NamedTemporaryFile
 import HeartValveLib
 from MONAILabel import MONAILabelLogic
 from MONAILabelLib import MONAILabelClient
+from ExportHeartDataLib.export import Exporter, ExportItem
 
 import time
 
@@ -58,23 +59,29 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     clonedEffect.setPythonSource(__file__.replace('\\','/'))
     return clonedEffect
 
-  def icon(self):
+  def icon(self, name="DeepHeart.png"):
     # It should not be necessary to modify this method
-    iconPath = os.path.join(os.path.dirname(__file__), 'SegmentEditorEffect.png')
+    iconPath = self.resourcePath(f"Icons/{name}")
     if os.path.exists(iconPath):
       return qt.QIcon(iconPath)
     return qt.QIcon()
 
   def helpText(self):
-    return """TODO"""
+    return """
+    The DeepHeart SegmentEditor effect provides access to rapid segmentation of heart valve leaflets.
+    ----------------------------------------
+    Based on MONAILabel (client/server)
+    Depends on SlicerHeart and MONAILabel extension
+    """
 
   # user can select model
   # assessing if model is valid to be used with selected heartvalve node
   # make sure that heart valves available and disable UI if not
   def setupOptionsFrame(self):
-    uiWidget = slicer.util.loadUI(self.resourcePath(f"{self.moduleName}.ui"))
+    uiWidget = slicer.util.loadUI(self.resourcePath(f"UI/{self.moduleName}.ui"))
     self.scriptedEffect.addOptionsWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
+    self.ui.fetchServerInfoButton.setIcon(self.icon("refresh-icon.png"))
 
     settings = qt.QSettings()
     self.ui.serverComboBox.currentText = settings.value("DeepHeart/serverUrl", "http://127.0.0.1:8000")
@@ -84,7 +91,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.ui.fetchServerInfoButton.connect("clicked(bool)", self.onClickFetchInfo)
     self.ui.serverComboBox.connect("currentIndexChanged(int)", self.onClickFetchInfo)
     self.ui.segmentationModelSelector.connect("currentIndexChanged(int)", self.onSegmentationModelSelected)
-    # self.ui.segmentationModelSelector.connect("currentIndexChanged(int)", self.updateParameterNodeFromGUI)
     self.ui.segmentationButton.connect("clicked(bool)", self.onClickSegmentation)
     self.updateServerUrlGUIFromSettings()
 
@@ -106,41 +112,30 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   def onClickFetchInfo(self):
     self.saveServerUrl()
     self.ui.appComboBox.clear()
+    self.ui.segmentationModelSelector.clear()
+    self.ui.segmentationButton.setEnabled(False)
+
     serverUrl = self.ui.serverComboBox.currentText
     info = self.logic.fetchInfo(serverUrl)
+    if not info:
+      return
+
     self.ui.appComboBox.addItem(info.get("name", ""))
 
     from HeartValveLib.helpers import getValveModelForSegmentationNode
     segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
     valveModel = getValveModelForSegmentationNode(segmentationNode)
 
-    # from ExportHeartDataLib import reference_volume
-    # from ExportHeartDataLib.base import ExportItem, ExportSummary
-    #
-    # start = time.time()
-    #
-    #
-    # ExportItem.referenceVolumeNode = \
-    #   reference_volume.getNormalizedReferenceVolumeNode(valveModel,
-    #                                                     exportSettings["volume_dimensions"],
-    #                                                     exportSettings["voxel_spacing"])
-    # ExportItem.probeToRasTransform = valveModel.getProbeToRasTransformNode()
-    # ExportItem.setExportSummarizer(ExportSummary())
-    #
-    # from ExportHeartDataLib.items import PhaseFrame, Annulus
-    # normalizedVolume = PhaseFrame(valveModel).getVolumeFrame()
-    # ExportItem.saveNode(normalizedVolume, temp_dir / f"img.nii.gz", kind='mid-systolic-images')
-    #
-    # annulusNode = Annulus(valveModel).getAnnulusLabel()
-    # ExportItem.saveNode(annulusNode, temp_dir / f"ann.nii.gz", kind='mid-systolic-annulus')
-    #
-    # exported_dict = ExportItem.exportSummarizer.get_summary()
-    # print(exported_dict)
+    if not valveModel:
+      self.ui.statusLabel.plainText = """
+      No associated HeartValve (SlicerHeart) could be found for selected segmentation node.
+      Please use the SlicerHeart infrastructure to be able to continue. 
+      """
+      self.ui.statusLabel.show()
+      qt.QTimer.singleShot(10000, lambda: self.ui.statusLabel.hide())
+    else:
+      self._updateModelSelector(self.ui.segmentationModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
 
-    # TODO: precheck if scene is valid and also if there are multiple
-    # TODO: ExportHeartData should take valveModel of the segmentation as main segmentation phase to work on???
-
-    self._updateModelSelector(self.ui.segmentationModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
 
   def saveServerUrl(self):
     settings = qt.QSettings()
@@ -230,8 +225,12 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
     modelName = self.ui.segmentationModelSelector.currentText
     serverUrl = self.ui.serverComboBox.currentText
-    # TODO: check scene if everything needed for the selected model is available
-    # TODO: check if selected segmentation Node belongs to the main segmentation heart valve
+
+    from HeartValveLib.helpers import getValveModelForSegmentationNode
+    valveModel = getValveModelForSegmentationNode(segmentationNode)
+    if not valveModel:
+      logging.warning("No associated HeartValve (SlicerHeart) could be found for selected segmentation node")
+      return
 
     self.updateProgress(0)
 
@@ -239,7 +238,9 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       result_file = None
       try:
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-        result_file = self.logic.infer(serverUrl, modelName, temp_dir, progressCallback=self.updateProgress)
+        self.updateProgress(25)
+        image_in = self.logic.preprocessSceneData(valveModel, modelName, temp_dir)
+        result_file = self.logic.infer(image_in, serverUrl, modelName, temp_dir, progressCallback=self.updateProgress)
         if result_file:
           labelNode = slicer.util.loadLabelVolume(str(result_file))
 
@@ -349,10 +350,7 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
       logging.debug("{} = {}".format(k, model_type))
       self.models[k] = v
 
-  def infer(self, serverUrl, modelName, temp_dir, progressCallback):
-    progressCallback(25)
-    image_in = self.preprocessSceneData(modelName, temp_dir)
-
+  def infer(self, image_in, serverUrl, modelName, temp_dir, progressCallback):
     progressCallback(50)
     client = MONAILabelClient(server_url=serverUrl)
     sessionId = client.create_session(image_in)["session_id"]
@@ -367,13 +365,10 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
 
     return result_file
 
-  def preprocessSceneData(self, modelName, temp_dir):
+  def preprocessSceneData(self, referenceValveModel, modelName, temp_dir):
     start = time.time()
     exportSettings = self.models[modelName]["config"]["model_attributes"]
-    exporter = InferenceExporter(input_data=slicer.mrmlScene,
-                                 output_directory=temp_dir,
-                                 **exportSettings)
-    exported_dict = exporter.export()
+    exported_dict = getInferenceExport(referenceValveModel, output_directory=temp_dir, **exportSettings)
 
     volumes = [exported_dict[key][0] for key in self.models[modelName]["config"]["export_keys"]]
     image_in = _stackVolumes(volumes, temp_dir)
@@ -381,33 +376,61 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
     return image_in
 
 
-class InferenceExporter(object):
+def getInferenceExport(referenceValveModel,
+                       valve_type,
+                       cardiac_phase_frames,
+                       output_directory=None,
+                       voxel_spacing=None,
+                       volume_dimensions=None,
+                       landmark_labels=None,
+                       landmark_label_phases=None,
+                       annulus_contour_label=True,
+                       annulus_phases=None):
 
-  def __init__(self,
-               valve_type,
-               input_data=None,
-               cardiac_phase_frames=None,
-               output_directory=None,
-               voxel_spacing=None,
-               volume_dimensions=None,
-               landmark_labels=None,
-               landmark_label_phases=None,
-               annulus_phases=None):
+  """
+     :return: returning a dictionary with the output types and file paths
+  """
+  try:
+    from ExportHeartDataLib.summary import ExportSummary
+    ExportItem.setExportSummarizer(ExportSummary())
+    ExportItem.prefix = "temp"
 
-    from ExportHeartDataLib.export import Exporter
-    self._exporter = Exporter(valve_type,
-                              input_data=input_data,
-                              cardiac_phase_frames=cardiac_phase_frames,
-                              output_directory=output_directory,
-                              volume_dimensions=volume_dimensions,
-                              voxel_spacing=voxel_spacing,
-                              landmark_labels=landmark_labels,
-                              landmark_label_phases=landmark_label_phases,
-                              annulus_contour_label=True,
-                              annulus_phases=annulus_phases)
+    from pathlib import Path
+    ExportItem.outputDir = Path(output_directory)
 
-  def export(self):
-    return self._exporter.export()
+    from HeartValveLib.helpers import getFirstValveModelNodeMatchingPhaseAndType, getValvePhaseShortName
+    from ExportHeartDataLib.utils import cloneMRMLNode
+    ExportItem.probeToRasTransform = cloneMRMLNode(referenceValveModel.getProbeToRasTransformNode())
+    Exporter.initializeReferenceVolumeNode(referenceValveModel, voxel_spacing, volume_dimensions)
+
+    assert ExportItem.requiredAttributesSet()
+
+    from ExportHeartDataLib.items import Annulus, PhaseFrame, LandmarkLabels
+    for valveModel in Exporter.getRequestedValveModels(cardiac_phase_frames, valve_type):
+      verifyAndRunItemExport(PhaseFrame(valveModel, valveModel is referenceValveModel))
+
+      phaseShortName = getValvePhaseShortName(valveModel)
+      if annulus_contour_label and phaseShortName in annulus_phases:
+        verifyAndRunItemExport(Annulus(valveModel, asLabel=True))
+      if landmark_labels and phaseShortName in landmark_label_phases:
+        verifyAndRunItemExport(LandmarkLabels(valveModel, landmark_labels))
+  except Exception as exc:
+    import logging
+    import traceback
+    traceback.print_exc()
+    logging.exception(exc)
+  finally:
+    ExportItem.cleanup()
+
+  return ExportItem.exportSummarizer.get_summary()
+
+
+def verifyAndRunItemExport(item):
+  valid, message = item.verify()
+  if valid:
+    item()
+  else:
+    raise ValueError(f"{item.__class__.__name__}: {message}")
 
 
 def _stackVolumes(volumes: list, out_dir: str):

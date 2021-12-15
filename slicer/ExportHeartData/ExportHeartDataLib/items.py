@@ -10,8 +10,6 @@ from HeartValveLib.helpers import getValvePhaseShortName
 
 class Landmarks(ExportItem):
 
-  LANDMARKS_OUTPUT_DIR_NAME = "landmarks"
-
   def verify(self):
     valid = self._valveModel.getAnnulusLabelsMarkupNode() is not None
     return valid, \
@@ -22,11 +20,13 @@ class Landmarks(ExportItem):
 
   def __call__(self):
     logger = self.getLogger()
-    landmarksNode = self._valveModel.getAnnulusLabelsMarkupNode()
-    outputDirectory = self.outputDir / self.LANDMARKS_OUTPUT_DIR_NAME
+    landmarksNode = cloneMRMLNode(self._valveModel.getAnnulusLabelsMarkupNode())
+    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-landmarks"
+    outputDirectory = self.outputDir / folderName
     outputFile = outputDirectory / f"{self.prefix}.fcsv"
     outputDirectory.mkdir(exist_ok=True)
     logger.debug(f"Saving landmarks to {outputFile}: {self.saveNode(landmarksNode, outputFile, 'landmarks')}")
+    slicer.mrmlScene.RemoveNode(landmarksNode)
 
 
 class LandmarkLabels(ExportItem):
@@ -58,6 +58,7 @@ class LandmarkLabels(ExportItem):
       outputFile = outputDirectory / f"{self.prefix}.nii.gz"
       logger.debug(f"Saving landmark {landmarkLabel} to {outputFile}: "
                    f"{self.saveNode(labelNode, outputFile, folderName)}")
+      slicer.mrmlScene.RemoveNode(labelNode)
 
 
 class Segmentation(ExportItem):
@@ -92,6 +93,7 @@ class Segmentation(ExportItem):
       self._saveSegmentsIntoSeparateFiles(segmentationNode, outputDirectory)
     else:
       self._saveSegmentsIntoSingleFile(segmentationNode, outputDirectory)
+    slicer.mrmlScene.RemoveNode(segmentationNode)
 
   def _saveSegmentsIntoSeparateFiles(self, segmentationNode, outputDirectory):
     segmentationsLogic = slicer.modules.segmentations.logic()
@@ -138,18 +140,20 @@ class Annulus(ExportItem):
     outputDirectory.mkdir(parents=True, exist_ok=True)
     for outputFormat in self._outputFormats:
       if outputFormat == ".vtk":
-        node = self._valveModel.getAnnulusContourModelNode()
+        node = cloneMRMLNode(self._valveModel.getAnnulusContourModelNode())
       else:
         node = self.getAnnulusLabel()
       outputFile = outputDirectory / f"{self.prefix}{outputFormat}"
       self.getLogger().debug(f"Exporting annulus to {outputFile}")
       self.saveNode(node, outputFile, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}")
+      slicer.mrmlScene.RemoveNode(node)
 
   def getAnnulusLabel(self):
     segNode = getSegmentationFromAnnulusContourNode(self._valveModel, self.referenceVolumeNode)
     if not segNode:
       raise self.AnnulusExportFailed()
     node = SegmentationHelper.createLabelNodeFromVisibleSegments(segNode, self.referenceVolumeNode, "Annulus")
+    slicer.mrmlScene.RemoveNode(segNode)
     return node
 
 
@@ -230,7 +234,7 @@ class PhaseFrame(ExportItem):
       outputFile = outputDirectory / f"{self.prefix}.nii.gz"
       self.getLogger().debug(f"Exporting phase {self.phase} to {outputFile}")
       self.saveNode(volumeNode, outputFile, folderName)
-    return volumeNode
+    slicer.mrmlScene.RemoveNode(volumeNode)
 
 
 class AdditionalFrames(ExportItem):
@@ -268,3 +272,4 @@ class AdditionalFrames(ExportItem):
       frame_directory = self.outputDir / folderName
       frame_directory.mkdir(parents=True, exist_ok=True)
       self.saveNode(volumeNode, str(frame_directory / f"{self.prefix}.nii.gz"), folderName)
+      slicer.mrmlScene.RemoveNode(volumeNode)

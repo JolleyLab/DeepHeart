@@ -39,6 +39,15 @@ class ExportItem(ABC):
   probeToRasTransform = None
 
   @classmethod
+  def cleanup(cls):
+    if cls.probeToRasTransform is not None:
+      slicer.mrmlScene.RemoveNode(cls.probeToRasTransform)
+      cls.probeToRasTransform = None
+    if cls.referenceVolumeNode is not None:
+      slicer.mrmlScene.RemoveNode(cls.referenceVolumeNode)
+      cls.referenceVolumeNode = None
+
+  @classmethod
   def requiredAttributesSet(cls):
     return cls.outputDir is not None and \
            cls.referenceVolumeNode is not None and \

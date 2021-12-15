@@ -1,9 +1,7 @@
 import os
-import vtk
 import shutil
 import logging
 from pathlib import Path
-from collections import deque
 
 import slicer
 
@@ -12,7 +10,6 @@ from ExportHeartDataLib.items import Segmentation, Annulus, PhaseFrame, Addition
 from ExportHeartDataLib.utils import cloneMRMLNode, computePhaseMetrics, getRandomDirectoryName, getFinalVoxelSpacing
 from ExportHeartDataLib.base import ExportBuilder, ExportItem
 from ExportHeartDataLib.summary import ExportSummary
-import ExportHeartDataLib.reference_volume as ReferenceVolume
 
 import HeartValveLib
 from HeartValveLib.helpers import getSpecificHeartValveModelNodesMatchingPhaseAndType, getFirstValveModelNodeMatchingPhaseAndType, \
@@ -22,6 +19,26 @@ from typing import Optional
 
 
 class Exporter(object):
+
+  @staticmethod
+  def initializeReferenceVolumeNode(valveModel, voxelSpacing, volumeDimensions):
+    import ExportHeartDataLib.reference_volume as ReferenceVolume
+    if voxelSpacing is not None and not type(voxelSpacing) is list:
+      voxelSpacing = [voxelSpacing] * 3
+    ExportItem.referenceVolumeNode = \
+      ReferenceVolume.getNormalizedReferenceVolumeNode(valveModel, volumeDimensions, voxelSpacing)
+
+  @staticmethod
+  def getRequestedValveModels(cardiacPhases, valveType):
+    valveModels = getSpecificHeartValveModelNodesMatchingPhaseAndType(cardiacPhases, valveType)
+    if len(valveModels) != len(cardiacPhases):
+      raise ValueError(
+        f"""
+            Couldn't find valve models for cardiac phases {cardiacPhases} or found multiple in cardiac phase.
+            Found valve models with phases (in order): {[getValvePhaseShortName(m) for m in valveModels]}
+          """
+      )
+    return valveModels
 
   @property
   def valveType(self):
@@ -111,15 +128,6 @@ class Exporter(object):
     """
     :return: returning a dictionary with the output types and file paths
     """
-    newNodes = []
-
-    @vtk.calldata_type(vtk.VTK_OBJECT)
-    def onNodeAdded(caller, event, node):
-        newNodes.append(node)
-
-    self.logger.debug("Adding mrmlScene observer for detecting new mrml nodes during export for later clean up.")
-    mrmlNodeObserver = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, onNodeAdded)
-
     try:
       if self.inputData is None or self.inputData is slicer.mrmlScene:
         self._exportFromMRMLScene()
@@ -130,10 +138,8 @@ class Exporter(object):
     except Exception as exc:
       self.logger.exception(exc)
     finally:
-      slicer.mrmlScene.RemoveObserver(mrmlNodeObserver)
       logFilePath = slicer.app.errorLogModel().filePath
       shutil.copy(logFilePath, self.outputDir / Path(logFilePath).name)
-      deque(map(slicer.mrmlScene.RemoveNode, newNodes))
     return ExportItem.exportSummarizer.get_summary()
 
   def _exportMRBDirectory(self):
@@ -166,32 +172,28 @@ class Exporter(object):
       import traceback
       traceback.print_exc()
       self.logger.exception(exc)
-
-  def loadScene(self, mrbFile):
-    try:
-      slicer.app.ioManager().loadScene(mrbFile)
-    except Exception as exc:
-      self.logger.warning(exc)
+    except:
+      ExportItem.cleanup()
 
   def _composeExport(self):
     referenceValveModel = getFirstValveModelNodeMatchingPhaseAndType(self.cardiacPhases[0], self._valveType)
     ExportItem.probeToRasTransform = cloneMRMLNode(referenceValveModel.getProbeToRasTransformNode())
-    self.initializeReferenceVolumeNode(referenceValveModel)
+    voxelSpacing = getFinalVoxelSpacing(self.voxelSpacing, self.minValveHeightVxl, referenceValveModel)
+    self.initializeReferenceVolumeNode(referenceValveModel, voxelSpacing, self.volumeDimensions)
 
     assert ExportItem.requiredAttributesSet()
 
-    # TODO: ExportItems should clean up whatever was added during export
     self._builder = ExportBuilder()
 
     if self.additionalFrameRange:
       print(f"Adding addition frame range {self.additionalFrameRange} around {getValvePhaseShortName(referenceValveModel)}")
       self._builder.add_export_item(AdditionalFrames(referenceValveModel, self.additionalFrameRange))
 
-    for valveModel in self._getRequestedValveModels():
+    for valveModel in self.getRequestedValveModels(self.cardiacPhases, self.valveType):
       self._builder.add_export_item(PhaseFrame(valveModel, valveModel is referenceValveModel))
       phaseShortName = getValvePhaseShortName(valveModel)
 
-      if (self.exportAnnulusContourLabel or self.exportAnnulusContourLabel) and phaseShortName in self.annulusPhases:
+      if (self.exportAnnulusContourLabel or self.exportAnnulusContourModel) and phaseShortName in self.annulusPhases:
         self._builder.add_export_item(Annulus(valveModel, self.exportAnnulusContourLabel, self.exportAnnulusContourModel))
       if self.annulusLabels and phaseShortName in self.annulusLabelPhases:
         self._builder.add_export_item(LandmarkLabels(valveModel, self.annulusLabels))
@@ -200,20 +202,8 @@ class Exporter(object):
       if self.exportSegmentation and phaseShortName in self.segmentationPhases:
         self._builder.add_export_item(Segmentation(valveModel, self.oneFilePerSegment))
 
-  def _getRequestedValveModels(self):
-    valveModels = getSpecificHeartValveModelNodesMatchingPhaseAndType(self.cardiacPhases, self._valveType)
-    if len(valveModels) != len(self.cardiacPhases):
-      raise ValueError(
-        f"""
-          Couldn't find valve models for cardiac phases {self.cardiacPhases} or found multiple in cardiac phase.
-          Found valve models with phases (in order): {[getValvePhaseShortName(m) for m in valveModels]}
-        """
-      )
-    return valveModels
-
-  def initializeReferenceVolumeNode(self, valveModel):
-    voxelSpacing = getFinalVoxelSpacing(self.voxelSpacing, self.minValveHeightVxl, valveModel)
-    if voxelSpacing is not None and not type(voxelSpacing) is list:
-      voxelSpacing = [voxelSpacing] * 3
-    ExportItem.referenceVolumeNode = \
-      ReferenceVolume.getNormalizedReferenceVolumeNode(valveModel, self.volumeDimensions, voxelSpacing)
+  def loadScene(self, mrbFile):
+    try:
+      slicer.app.ioManager().loadScene(mrbFile)
+    except Exception as exc:
+      self.logger.warning(exc)

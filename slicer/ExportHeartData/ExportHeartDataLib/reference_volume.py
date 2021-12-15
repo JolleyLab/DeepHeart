@@ -18,6 +18,7 @@ def getNormalizedReferenceVolumeNode(valveModel, volumeDimensions, voxelSpacing)
   valveIJKToProbe = _getValveIJKtoProbeTransform(valveModel, referenceVolumeNode)
   referenceVolumeNode.SetIJKToRASMatrix(valveIJKToProbe)
   normalizedVolume = getResampledScalarVolume(volumeNode, referenceVolumeNode)
+  slicer.mrmlScene.RemoveNode(referenceVolumeNode)
   return normalizedVolume
 
 
