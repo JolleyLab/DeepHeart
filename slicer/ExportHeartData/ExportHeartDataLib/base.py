@@ -57,6 +57,8 @@ class ExportItem(ABC):
   @property
   def phase(self):
     assert self._valveModel is not None
+    if self._phase:
+      return self._phase
     return getValvePhaseShortName(self._valveModel)
 
   @staticmethod
@@ -77,8 +79,9 @@ class ExportItem(ABC):
       cls.exportSummarizer.add_export_item(kind, outputFile)
     return slicer.util.saveNode(node, str(outputFile))
 
-  def __init__(self, valveModel):
+  def __init__(self, valveModel, phase=None):
     self._valveModel = valveModel
+    self._phase = phase
 
   @abstractmethod
   def __call__(self):

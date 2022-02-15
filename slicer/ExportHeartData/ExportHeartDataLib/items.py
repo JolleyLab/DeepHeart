@@ -15,8 +15,8 @@ class Landmarks(ExportItem):
     return valid, \
            None if valid else f"No Annulus Labels Markup Node found for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel):
-    super(Landmarks, self).__init__(valveModel)
+  def __init__(self, valveModel, phase=None):
+    super(Landmarks, self).__init__(valveModel, phase)
 
   def __call__(self):
     logger = self.getLogger()
@@ -40,8 +40,8 @@ class LandmarkLabels(ExportItem):
                 f"{[f'{a}={b}' for a,b in zip(self.landmarkLabels, positions)]}"
       return False, message
 
-  def __init__(self, valveModel, landmarkLabels):
-    super(LandmarkLabels, self).__init__(valveModel)
+  def __init__(self, valveModel, landmarkLabels, phase=None):
+    super(LandmarkLabels, self).__init__(valveModel, phase)
     self.landmarkLabels = landmarkLabels if landmarkLabels else []
 
   def __call__(self):
@@ -70,8 +70,8 @@ class Segmentation(ExportItem):
     return valid, None if valid else "No leaflet segmentation node could be found " \
                                      "for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel, oneFilePerSegment):
-    super(Segmentation, self).__init__(valveModel)
+  def __init__(self, valveModel, oneFilePerSegment, phase=None):
+    super(Segmentation, self).__init__(valveModel, phase)
     self._oneFilePerSegment = oneFilePerSegment
 
   def __call__(self):
@@ -126,8 +126,8 @@ class Annulus(ExportItem):
     return valid, None if valid else "No annulus contour model node could be found " \
                                      "for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel, asLabel=False, asModel=False):
-    super(Annulus, self).__init__(valveModel)
+  def __init__(self, valveModel, asLabel=False, asModel=False, phase=None):
+    super(Annulus, self).__init__(valveModel, phase)
     self._outputFormats = []
     if asLabel is True:
       self._outputFormats.append(".nii.gz")
@@ -214,8 +214,8 @@ class PhaseFrame(ExportItem):
       return False, exc
     return True, None
 
-  def __init__(self, valveModel, isReferenceFrame=False):
-    super(PhaseFrame, self).__init__(valveModel)
+  def __init__(self, valveModel, isReferenceFrame=False, phase=None):
+    super(PhaseFrame, self).__init__(valveModel, phase)
     self._isReferenceVolume = isReferenceFrame
 
   def getVolumeFrame(self):
@@ -255,8 +255,8 @@ class AdditionalFrames(ExportItem):
     return True, None
 
 
-  def __init__(self, valveModel, frameRange):
-    super(AdditionalFrames, self).__init__(valveModel)
+  def __init__(self, valveModel, frameRange, phase=None):
+    super(AdditionalFrames, self).__init__(valveModel, phase)
     self._additionalFrameRange = frameRange
 
   def __call__(self):

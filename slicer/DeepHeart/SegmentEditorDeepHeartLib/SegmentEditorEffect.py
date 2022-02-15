@@ -74,9 +74,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     Depends on SlicerHeart and MONAILabel extension
     """
 
-  # user can select model
-  # assessing if model is valid to be used with selected heartvalve node
-  # make sure that heart valves available and disable UI if not
   def setupOptionsFrame(self):
     uiWidget = slicer.util.loadUI(self.resourcePath(f"UI/{self.moduleName}.ui"))
     self.scriptedEffect.addOptionsWidget(uiWidget)
@@ -92,6 +89,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.ui.serverComboBox.connect("currentIndexChanged(int)", self.onClickFetchInfo)
     self.ui.segmentationModelSelector.connect("currentIndexChanged(int)", self.onSegmentationModelSelected)
     self.ui.segmentationButton.connect("clicked(bool)", self.onClickSegmentation)
+
+    self._heartValveSelection = dict()
     self.updateServerUrlGUIFromSettings()
 
   def initializeParameterNode(self):
@@ -135,7 +134,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       qt.QTimer.singleShot(10000, lambda: self.ui.statusLabel.hide())
     else:
       self._updateModelSelector(self.ui.segmentationModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
-
 
   def saveServerUrl(self):
     settings = qt.QSettings()
@@ -216,6 +214,58 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     segmentationModelIndex = self.ui.segmentationModelSelector.currentIndex
     self.ui.segmentationButton.setEnabled(self.ui.segmentationModelSelector.itemText(segmentationModelIndex) != "")
 
+    # hide all selectors
+    for modelName in self._heartValveSelection.keys():
+      labels, selectors = self._heartValveSelection[modelName]
+      for label, selector in zip(labels, selectors):
+        label.hide()
+        selector.hide()
+
+    modelName = self.ui.segmentationModelSelector.currentText
+    if not modelName:
+      return
+
+    modelConfig = self.logic.models[modelName]["config"]
+    cardiacPhases = modelConfig["model_attributes"]["cardiac_phase_frames"]
+    valveType = modelConfig["model_attributes"]["valve_type"]
+    try:
+      labels, selectors = self._heartValveSelection[modelName]
+      for label, selector in zip(labels, selectors):
+        label.show()
+        selector.show()
+    except KeyError:
+      labels = []
+      selectors = []
+      for cardiacPhase in cardiacPhases:
+        valveLabel = qt.QLabel(f"{cardiacPhase} Phase")
+        valveSelector = self._createHeartValveNodeSelector()
+        labels.append(valveLabel)
+        selectors.append(valveSelector)
+        self.ui.valveSelectionFrame.layout().addRow(valveLabel, valveSelector)
+        self._heartValveSelection[modelName] = (labels, selectors)
+
+    for idx, (label, selector) in enumerate(zip(labels, selectors)):
+      if selector.currentNode() is not None:
+        continue
+      from HeartValveLib.helpers import getSpecificHeartValveModelNodesMatchingPhaseAndType
+      valveModels = getSpecificHeartValveModelNodesMatchingPhaseAndType([cardiacPhases[idx]], valveType)
+      if valveModels:
+        selector.setCurrentNode(valveModels[0].heartValveNode)
+
+  def _createHeartValveNodeSelector(self):
+    valveSelector = slicer.qMRMLNodeComboBox()
+    valveSelector.nodeTypes = ["vtkMRMLScriptedModuleNode"]
+    valveSelector.setNodeTypeLabel("HeartValve", "vtkMRMLScriptedModuleNode")
+    valveSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", "HeartValve")
+    valveSelector.addEnabled = False
+    valveSelector.removeEnabled = True
+    valveSelector.noneEnabled = True
+    valveSelector.showHidden = True  # scripted module nodes are hidden by default
+    valveSelector.renameEnabled = True
+    valveSelector.setMRMLScene(slicer.mrmlScene)
+    valveSelector.setToolTip("Select heart valve")
+    return valveSelector
+
   def onClickSegmentation(self):
     try:
       import nibabel as nib
@@ -232,6 +282,30 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       logging.warning("No associated HeartValve (SlicerHeart) could be found for selected segmentation node")
       return
 
+    _, selectors = self._heartValveSelection[modelName]
+    heartValves = [selector.currentNode() for selector in selectors]
+    if any(hv is None for hv in heartValves):
+      slicer.util.errorDisplay("Missing phases. Please check the inputs.")
+      self.updateProgress(100)
+      return
+
+    from HeartValveLib.helpers import getValvePhaseShortName
+    modelConfig = self.logic.models[modelName]["config"]
+    cardiacPhases = modelConfig["model_attributes"]["cardiac_phase_frames"]
+    differentPhaseSelected = []
+    for idx, selector in enumerate(selectors):
+    # check if selected phase is right phase
+      vm = HeartValveLib.HeartValves.getValveModel(selector.currentNode())
+      selectedPhaseShortname = getValvePhaseShortName(vm)
+      differentPhaseSelected.append(selectedPhaseShortname != cardiacPhases[idx])
+
+    if any(different is True for different in differentPhaseSelected):
+      if not slicer.util.confirmYesNoDisplay(
+                """Found mismatch between assigned phases and selected heart valve nodes.
+                Do you want to continue with the currently selected heart valve (s)?
+                """):
+        return
+
     self.updateProgress(0)
 
     with TemporaryDirectory() as temp_dir:
@@ -239,8 +313,9 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       try:
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
         self.updateProgress(25)
-        image_in = self.logic.preprocessSceneData(valveModel, modelName, temp_dir)
-        result_file = self.logic.infer(image_in, serverUrl, modelName, temp_dir, progressCallback=self.updateProgress)
+
+        image_in = self.logic.preprocessSceneData(heartValves, modelName, temp_dir)
+        result_file = self.logic.infer(image_in, serverUrl, modelName, progressCallback=self.updateProgress)
         if result_file:
           labelNode = slicer.util.loadLabelVolume(str(result_file))
 
@@ -278,6 +353,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         slicer.util.errorDisplay(
           "Failed to run inference in MONAI Label Server", detailedText=traceback.format_exc()
         )
+        self.updateProgress(100)
       finally:
         qt.QApplication.restoreOverrideCursor()
         if result_file and os.path.exists(result_file):
@@ -350,7 +426,7 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
       logging.debug("{} = {}".format(k, model_type))
       self.models[k] = v
 
-  def infer(self, image_in, serverUrl, modelName, temp_dir, progressCallback):
+  def infer(self, image_in, serverUrl, modelName, progressCallback):
     progressCallback(50)
     client = MONAILabelClient(server_url=serverUrl)
     sessionId = client.create_session(image_in)["session_id"]
@@ -365,18 +441,27 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
 
     return result_file
 
-  def preprocessSceneData(self, referenceValveModel, modelName, temp_dir):
-    start = time.time()
-    exportSettings = self.models[modelName]["config"]["model_attributes"]
-    exported_dict = getInferenceExport(referenceValveModel, output_directory=temp_dir, **exportSettings)
+  def preprocessSceneData(self, heartValves, modelName, temp_dir):
+    """
+    :param heartValves: heart valve model to use as reference frame
+    :param modelConfig: model configuration as stored on the MONAI server
+    :param temp_dir: directory to temporarily export data to
+    :return: prepared inference model input volume (4D)
+    """
+    valveModels = [HeartValveLib.HeartValves.getValveModel(hv) for hv in heartValves]
 
-    volumes = [exported_dict[key][0] for key in self.models[modelName]["config"]["export_keys"]]
+    start = time.time()
+    modelConfig = self.models[modelName]["config"]
+    exportSettings = modelConfig["model_attributes"]
+    exported_dict = getInferenceExport(valveModels, output_directory=temp_dir, **exportSettings)
+
+    volumes = [exported_dict[key][0] for key in modelConfig["export_keys"]]
     image_in = _stackVolumes(volumes, temp_dir)
     logging.info("Time consumed to preprocess data: {0:3.1f}".format(time.time() - start))
     return image_in
 
 
-def getInferenceExport(referenceValveModel,
+def getInferenceExport(valveModels,
                        valve_type,
                        cardiac_phase_frames,
                        output_directory=None,
@@ -400,25 +485,21 @@ def getInferenceExport(referenceValveModel,
 
     from HeartValveLib.helpers import getFirstValveModelNodeMatchingPhaseAndType, getValvePhaseShortName
     from ExportHeartDataLib.utils import cloneMRMLNode
+    referenceValveModel = valveModels[0]
     ExportItem.probeToRasTransform = cloneMRMLNode(referenceValveModel.getProbeToRasTransformNode())
     Exporter.initializeReferenceVolumeNode(referenceValveModel, voxel_spacing, volume_dimensions)
 
     assert ExportItem.requiredAttributesSet()
 
     from ExportHeartDataLib.items import Annulus, PhaseFrame, LandmarkLabels
-    for valveModel in Exporter.getRequestedValveModels(cardiac_phase_frames, valve_type):
-      verifyAndRunItemExport(PhaseFrame(valveModel, valveModel is referenceValveModel))
-
-      phaseShortName = getValvePhaseShortName(valveModel)
+    for valveModel, phaseShortName in zip(valveModels, cardiac_phase_frames):
+      verifyAndRunItemExport(PhaseFrame(valveModel, valveModel is referenceValveModel, phase=phaseShortName))
       if annulus_contour_label and phaseShortName in annulus_phases:
-        verifyAndRunItemExport(Annulus(valveModel, asLabel=True))
+        verifyAndRunItemExport(Annulus(valveModel, asLabel=True, phase=phaseShortName))
       if landmark_labels and phaseShortName in landmark_label_phases:
-        verifyAndRunItemExport(LandmarkLabels(valveModel, landmark_labels))
+        verifyAndRunItemExport(LandmarkLabels(valveModel, landmark_labels, phase=phaseShortName))
   except Exception as exc:
-    import logging
-    import traceback
-    traceback.print_exc()
-    logging.exception(exc)
+    raise exc
   finally:
     ExportItem.cleanup()
 

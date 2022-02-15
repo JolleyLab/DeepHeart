@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>SegmentEditorNvidiaAIAA</class>
- <widget class="QWidget" name="SegmentEditorNvidiaAIAA">
+ <class>SegmentEditorDeepHeart</class>
+ <widget class="QWidget" name="SegmentEditorDeepHeart">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -13,20 +13,31 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <layout class="QGridLayout" name="serverSettings">
-     <item row="4" column="0" colspan="3">
-      <widget class="QProgressBar" name="progressBar">
-       <property name="value">
-        <number>0</number>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1" colspan="2">
-      <widget class="QComboBox" name="appComboBox"/>
-     </item>
      <item row="1" column="0">
       <widget class="QLabel" name="label_3">
        <property name="text">
         <string>App Name:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="segmentationButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Run</string>
+       </property>
+       <property name="icon">
+        <iconset>
+         <normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</iconset>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="label_12">
+       <property name="text">
+        <string>Model:</string>
        </property>
       </widget>
      </item>
@@ -43,27 +54,6 @@
        </property>
        <property name="currentText">
         <string>http://reslnjolleyws02:8899/</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>MONAI Label server:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="2">
-      <widget class="QPushButton" name="segmentationButton">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="text">
-        <string>Run</string>
-       </property>
-       <property name="icon">
-        <iconset>
-         <normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</iconset>
        </property>
       </widget>
      </item>
@@ -97,14 +87,24 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="label_12">
-       <property name="text">
-        <string>Model:</string>
+     <item row="5" column="0" colspan="3">
+      <widget class="QProgressBar" name="progressBar">
+       <property name="value">
+        <number>0</number>
        </property>
       </widget>
      </item>
-     <item row="3" column="0" colspan="3">
+     <item row="1" column="1" colspan="2">
+      <widget class="QComboBox" name="appComboBox"/>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>MONAI Label server:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="3">
       <widget class="QPlainTextEdit" name="statusLabel">
        <property name="enabled">
         <bool>false</bool>
@@ -118,6 +118,11 @@
        <property name="textInteractionFlags">
         <set>Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
        </property>
+      </widget>
+     </item>
+     <item row="3" column="1" colspan="2">
+      <widget class="QFrame" name="valveSelectionFrame">
+       <layout class="QFormLayout" name="formLayout"/>
       </widget>
      </item>
     </layout>
