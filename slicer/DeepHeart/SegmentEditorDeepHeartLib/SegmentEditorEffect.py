@@ -301,9 +301,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     if any(different is True for different in differentPhaseSelected):
       if not slicer.util.confirmYesNoDisplay(
-                """Found mismatch between assigned phases and selected heart valve nodes.
-                Do you want to continue with the currently selected heart valve (s)?
-                """):
+              "Found mismatch between assigned phases and selected heart valve nodes.\n\n"
+              "Do you want to continue with the currently selected heart valve(s)?"):
         return
 
     self.updateProgress(0)
