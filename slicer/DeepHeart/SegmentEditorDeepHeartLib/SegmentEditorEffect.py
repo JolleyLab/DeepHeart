@@ -373,7 +373,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       if not num_eligible:
         msg = f"No eligible models were found for current valve type: {valveType}.\t\n"
       else:
-        msg = f"Found {num_eligible} eligible models were found for current valve type: {valveType}.\t\n"
+        msg = f"Found {num_eligible} eligible models for current valve type: {valveType}.\t\n"
       msg += "-----------------------------------------------------\t\n"
       msg += f"Total Models Available:  {len(self.logic.models)}\t\n"
       msg += "-----------------------------------------------------\t\n"

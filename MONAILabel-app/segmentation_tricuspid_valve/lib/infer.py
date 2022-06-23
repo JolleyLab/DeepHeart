@@ -103,10 +103,10 @@ class TricuspidInference(InferTask):
     def getExportKeys(self):
         pass
 
-    def inferer(self):
+    def inferer(self, data=None):
         return SimpleInferer()
 
-    def post_transforms(self):
+    def post_transforms(self, data=None):
         return [
             Activationsd(keys=Keys.PRED, softmax=True),
             AsDiscreted(keys=Keys.PRED, argmax=True),
@@ -135,7 +135,7 @@ class TricuspidInferenceTaskSinglePhaseAnn(TricuspidInference):
             'mid-systolic-annulus'
         ]
 
-    def pre_transforms(self):
+    def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_annulus"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
@@ -166,7 +166,7 @@ class TricuspidInferenceTaskTwoPhaseAnn(TricuspidInference):
             'mid-systolic-annulus'
         ]
 
-    def pre_transforms(self):
+    def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_md", "image_annulus"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
@@ -202,7 +202,7 @@ class TricuspidInferenceTaskSinglePhaseAnnCom(TricuspidInference):
             'mid-systolic-PSC'
         ]
 
-    def pre_transforms(self):
+    def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_annulus", "image_apc", "image_asc", "image_psc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
@@ -242,7 +242,7 @@ class TricuspidInferenceTaskTwoPhaseAnnCom(TricuspidInference):
             'mid-systolic-PSC'
         ]
 
-    def pre_transforms(self):
+    def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
@@ -264,7 +264,7 @@ class TricuspidInferenceTaskTwoPhaseAnnComOneLabel(TricuspidInferenceTaskTwoPhas
       - commissures labels: "APC", "ASC", "PSC"
     """
 
-    def pre_transforms(self):
+    def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_md", "image_annulus", "image_commissures"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
