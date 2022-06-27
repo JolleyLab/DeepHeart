@@ -3,7 +3,6 @@ import logging
 import slicer
 from ExportHeartDataLib.constants import APPLICATION_NAME
 from ExportHeartDataLib.summary import ExportSummary
-from HeartValveLib.helpers import getValvePhaseShortName
 
 
 class ExportBuilder(object):
@@ -59,6 +58,7 @@ class ExportItem(ABC):
     assert self._valveModel is not None
     if self._phase:
       return self._phase
+    from HeartValveLib.helpers import getValvePhaseShortName
     return getValvePhaseShortName(self._valveModel)
 
   @staticmethod

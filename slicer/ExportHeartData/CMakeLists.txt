@@ -13,6 +13,7 @@ set(MODULE_PYTHON_SCRIPTS
   ExportHeartDataLib/segmentation_utils
   ExportHeartDataLib/summary
   ExportHeartDataLib/utils
+  Testing/ExportHeartDataTest
   )
 
 #-----------------------------------------------------------------------------

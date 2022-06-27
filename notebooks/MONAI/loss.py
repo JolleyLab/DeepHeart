@@ -90,9 +90,9 @@ class CategoricalCrossentropyLoss(nn.Module):
             loss = loss + (cross_entropy * weighted_boundaries)
             del weighted_boundaries
 
-        mloss = torch.mean(torch.sum(loss.float(), 1))
-        assert torch.isfinite(mloss), 'Loss not finite'
-        return mloss
+#         mloss = torch.mean(torch.sum(loss.float(), 1))
+#         assert torch.isfinite(mloss), 'Loss not finite'
+        return loss.mean(dim=1)
 
 
 class DicePlusConstantCatCrossEntropyLoss(nn.Module):

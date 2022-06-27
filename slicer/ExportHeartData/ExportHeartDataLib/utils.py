@@ -1,23 +1,19 @@
-import logging
-
 import numpy as np
 import vtk
-
-import HeartValveLib
-import slicer
-from ExportHeartDataLib.constants import APPLICATION_NAME
-import ExportHeartDataLib.segmentation_utils as SegmentationHelper
 
 from typing import Optional
 
 
-def generateDirectoryName(valve_type=None, desired_volume_dimensions=None, minimum_valve_voxel_height=None):
+def generateDirectoryName(valve_type:str=None, desired_volume_dimensions:list=None, minimum_valve_voxel_height:int=None):
   directory = "DL_DATA"
   if desired_volume_dimensions:
+    assert type(desired_volume_dimensions) is list
     directory = "{}_{}".format(directory, "_".join([str(res) for res in desired_volume_dimensions]))
   if minimum_valve_voxel_height:
+    assert type(minimum_valve_voxel_height) is int
     directory = "{}_{}_vox_min".format(directory, minimum_valve_voxel_height)
   if valve_type:
+    assert type(valve_type) is str
     directory = "{}_{}".format(directory, valve_type)
   return directory
 
@@ -33,6 +29,8 @@ def getRandomDirectoryName():
 
 
 def getValveThickness(valveModel):
+  import HeartValveLib
+  import ExportHeartDataLib.segmentation_utils as SegmentationHelper
   annulusPoints = valveModel.annulusContourCurve.getInterpolatedPointsAsArray()
   [planePosition, planeNormal] = valveModel.getAnnulusContourPlane()
   [annulusPointsProjected, _, _] = HeartValveLib.getPointsProjectedToPlane(annulusPoints, planePosition, planeNormal)
@@ -100,6 +98,8 @@ def getSurfaceArea(polydata):
 
 
 def getSegmentationFromAnnulusContourNode(valveModel, referenceVolume):
+  import slicer
+  import ExportHeartDataLib.segmentation_utils as SegmentationHelper
   annulusModelNode = cloneMRMLNode(valveModel.getAnnulusContourModelNode())
   annulusModelNode.SetAndObserveTransformNodeID(None)
   segmentationNode = SegmentationHelper.getNewSegmentationNodeFromModel(referenceVolume, annulusModelNode)
@@ -109,6 +109,9 @@ def getSegmentationFromAnnulusContourNode(valveModel, referenceVolume):
 
 def getLabelFromLandmarkPosition(name, pos, referenceVolumeNode):
   import random
+  import slicer
+  import ExportHeartDataLib.segmentation_utils as SegmentationHelper
+
   segNode = SegmentationHelper.getNewSegmentationNode(referenceVolumeNode)
   sphereSegment = slicer.vtkSegment()
   sphereSegment.SetName(name)
@@ -128,6 +131,7 @@ def getLabelFromLandmarkPosition(name, pos, referenceVolumeNode):
 
 
 def cloneMRMLNode(node):
+  import slicer
   shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
   itemIDToClone = shNode.GetItemByDataNode(node)
   clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, itemIDToClone)
@@ -150,6 +154,7 @@ def getResampledScalarVolume(inputVolume, referenceVolume, interpolation="Linear
   :param interpolation: interpolation Linear or NearestNeighbor
   :return: vtkMRMLScalarVolumeNode
   """
+  import slicer
   outputVolume = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
   params = {'inputVolume': inputVolume,
             'referenceVolume': referenceVolume,
@@ -162,7 +167,7 @@ def getResampledScalarVolume(inputVolume, referenceVolume, interpolation="Linear
 
 def getFinalVoxelSpacing(desiredVoxelSpacing : float=None,
                          minimumValveSegmentationHeightVxl : float=None,
-                         valveModel : HeartValveLib.ValveModel=None) -> Optional[float]:
+                         valveModel=None) -> Optional[float]:
   """ Depending on provided parameters, a final voxel spacing will be provided to satisfy e.g. min valve height
 
   :param desiredVoxelSpacing: maximum voxel spacing
@@ -184,9 +189,9 @@ def getFinalVoxelSpacing(desiredVoxelSpacing : float=None,
   return None
 
 
-def getVolumeCloneWithProperties(volumeNode: slicer.vtkMRMLScalarVolumeNode,
+def getVolumeCloneWithProperties(volumeNode,
                                  volumeDimensions: list,
-                                 voxelSpacing=Optional[list]) -> slicer.vtkMRMLScalarVolumeNode:
+                                 voxelSpacing=Optional[list]):
   """ Clone volume node with the options of setting properties
 
   :param volumeNode: volume node to use as template
@@ -194,6 +199,9 @@ def getVolumeCloneWithProperties(volumeNode: slicer.vtkMRMLScalarVolumeNode,
   :param voxelSpacing: isotropic spacing in mm between voxels
   :return:
   """
+  import slicer
+  import logging
+  from ExportHeartDataLib.constants import APPLICATION_NAME
   volumesLogic = slicer.modules.volumes.logic()
   clonedVolume = volumesLogic.CloneVolume(slicer.mrmlScene, volumeNode, volumeNode.GetName() + "_reference")
   if voxelSpacing:
