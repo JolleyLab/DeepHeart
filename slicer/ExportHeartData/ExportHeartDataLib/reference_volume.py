@@ -25,7 +25,9 @@ def getNormalizedReferenceVolumeNode(valveModel, volumeDimensions, voxelSpacing)
 def _getValveIJKtoProbeTransform(valveModel, referenceVolumeNode):
   requiredLandmarks = getLandmarkLabelsDefinition(valveModel.getValveType())
   landmarks = valveModel.getAnnulusMarkupPositionsByLabels(requiredLandmarks)
-  assert all(lm is not None for lm in landmarks), f"Missing landmarks: {requiredLandmarks}, {landmarks}"
+  if not all(lm is not None for lm in landmarks):
+    raise ValueError(f"Missing landmarks for frame {valveModel.getValveVolumeSequenceIndex() + 1}: "
+                     f" {requiredLandmarks}, {landmarks}")
   valveToProbe = _getValveToProbeTransform(np.array(landmarks))
   valveToValveIJK = _getValveToValveIJKTransform(referenceVolumeNode)
   return _getValveIJKToProbe(valveToProbe, valveToValveIJK)

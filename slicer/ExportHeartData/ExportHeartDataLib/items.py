@@ -23,7 +23,7 @@ class Landmarks(ExportItem):
     landmarksNode = cloneMRMLNode(self._valveModel.getAnnulusLabelsMarkupNode())
     folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-landmarks"
     outputDirectory = self.outputDir / folderName
-    outputFile = outputDirectory / f"{self.prefix}.fcsv"
+    outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.fcsv"
     outputDirectory.mkdir(exist_ok=True)
     logger.debug(f"Saving landmarks to {outputFile}: {self.saveNode(landmarksNode, outputFile, 'landmarks')}")
     slicer.mrmlScene.RemoveNode(landmarksNode)
@@ -55,7 +55,7 @@ class LandmarkLabels(ExportItem):
       folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{landmarkLabel}"
       outputDirectory = self.outputDir / folderName
       outputDirectory.mkdir(exist_ok=True)
-      outputFile = outputDirectory / f"{self.prefix}.nii.gz"
+      outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz"
       logger.debug(f"Saving landmark {landmarkLabel} to {outputFile}: "
                    f"{self.saveNode(labelNode, outputFile, folderName)}")
       slicer.mrmlScene.RemoveNode(labelNode)
@@ -102,14 +102,14 @@ class Segmentation(ExportItem):
       SegmentationHelper.showOnlySegmentWithSegmentID(segmentationNode, segmentID)
       segmentationsLogic.ExportVisibleSegmentsToLabelmapNode(segmentationNode, labelNode, self.referenceVolumeNode)
       segmentName = segmentationNode.GetSegmentation().GetSegment(segmentID).GetName()
-      filename = f"{self.prefix}_{segmentName.replace(' ', '_')}.nii.gz"
+      filename = f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}_{segmentName.replace(' ', '_')}.nii.gz"
       self.saveNode(labelNode, outputDirectory / filename, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-segmentation")
 
   def _saveSegmentsIntoSingleFile(self, segmentationNode, outputDirectory):
     SegmentationHelper.showOnlySegmentsWithKeywordInName(segmentationNode, keyword="leaflet")
     labelNode = SegmentationHelper.createLabelNodeFromVisibleSegments(segmentationNode, self.referenceVolumeNode,
                                                                       "LeafletSegmentation")
-    self.saveNode(labelNode, outputDirectory / f"{self.prefix}.nii.gz",
+    self.saveNode(labelNode, outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz",
                   f"{PHASES_DIRECTORY_MAPPING[self.phase]}-segmentation")
 
 
@@ -143,7 +143,7 @@ class Annulus(ExportItem):
         node = cloneMRMLNode(self._valveModel.getAnnulusContourModelNode())
       else:
         node = self.getAnnulusLabel()
-      outputFile = outputDirectory / f"{self.prefix}{outputFormat}"
+      outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}{outputFormat}"
       self.getLogger().debug(f"Exporting annulus to {outputFile}")
       self.saveNode(node, outputFile, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}")
       slicer.mrmlScene.RemoveNode(node)
@@ -161,9 +161,6 @@ class PhaseFrame(ExportItem):
 
   PHASE_FRAME_OUTPUT_DIR_NAME = "images"
 
-  class NoAssociatedFrameNumberFound(Exception):
-    pass
-
   class NoSequenceBrowserNodeFound(Exception):
     pass
 
@@ -174,13 +171,6 @@ class PhaseFrame(ExportItem):
     cls.setSequenceFrameNumber(valveModel, np.clip(frameNumber, 0, numFrames))
     volumeNode = cloneMRMLNode(valveModel.getValveVolumeNode())
     return getResampledScalarVolume(volumeNode, referenceVolumeNode)
-
-  @classmethod
-  def getAssociatedFrameNumber(cls, valveModel):
-    frameNumber = valveModel.getValveVolumeSequenceIndex()
-    if frameNumber == -1:
-      raise cls.NoAssociatedFrameNumberFound(f"No associated frame number found for {valveModel.getCardiacCyclePhase()}")
-    return frameNumber
 
   @classmethod
   def setSequenceFrameNumber(cls, valveModel, frameNumber):
@@ -231,7 +221,7 @@ class PhaseFrame(ExportItem):
       folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.PHASE_FRAME_OUTPUT_DIR_NAME}"
       outputDirectory = self.outputDir / folderName
       outputDirectory.mkdir(parents=True, exist_ok=True)
-      outputFile = outputDirectory / f"{self.prefix}.nii.gz"
+      outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz"
       self.getLogger().debug(f"Exporting phase {self.phase} to {outputFile}")
       self.saveNode(volumeNode, outputFile, folderName)
     slicer.mrmlScene.RemoveNode(volumeNode)
@@ -271,5 +261,5 @@ class AdditionalFrames(ExportItem):
                                                         self._valveModel)
       frame_directory = self.outputDir / folderName
       frame_directory.mkdir(parents=True, exist_ok=True)
-      self.saveNode(volumeNode, str(frame_directory / f"{self.prefix}.nii.gz"), folderName)
+      self.saveNode(volumeNode, str(frame_directory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz"), folderName)
       slicer.mrmlScene.RemoveNode(volumeNode)

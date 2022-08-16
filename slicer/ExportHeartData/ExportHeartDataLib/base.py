@@ -37,6 +37,16 @@ class ExportItem(ABC):
   referenceVolumeNode = None
   probeToRasTransform = None
 
+  class NoAssociatedFrameNumberFound(Exception):
+    pass
+
+  @classmethod
+  def getAssociatedFrameNumber(cls, valveModel):
+    frameNumber = valveModel.getValveVolumeSequenceIndex()
+    if frameNumber == -1:
+      raise cls.NoAssociatedFrameNumberFound(f"No associated frame number found for {valveModel.getCardiacCyclePhase()}")
+    return frameNumber
+
   @classmethod
   def cleanup(cls):
     if cls.probeToRasTransform is not None:

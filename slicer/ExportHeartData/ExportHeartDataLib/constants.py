@@ -5,7 +5,10 @@ PHASES_DIRECTORY_MAPPING = {
   "MS": "mid-systolic",
   "MD": "mid-diastolic",
   "ES": "end-systolic",
-  "ED": "end-diastolic"
+  "ED": "end-diastolic",
+  "CS": "custom-systolic",
+  "CT": "custom-transition",
+  "CD": "custom-diastolic"
 }
 
 
