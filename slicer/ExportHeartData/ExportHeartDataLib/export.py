@@ -6,14 +6,20 @@ from pathlib import Path
 import slicer
 
 from ExportHeartDataLib.constants import APPLICATION_NAME
-from ExportHeartDataLib.items import Segmentation, Annulus, PhaseFrame, AdditionalFrames, Landmarks, LandmarkLabels
+from ExportHeartDataLib.items import Segmentation, Annulus, PhaseFrame, Landmarks, LandmarkLabels
 from ExportHeartDataLib.utils import cloneMRMLNode, computePhaseMetrics, getRandomDirectoryName, getFinalVoxelSpacing
+from ExportHeartDataLib.utils import getValveModelsWithPhaseNames
 from ExportHeartDataLib.base import ExportBuilder, ExportItem
 from ExportHeartDataLib.summary import ExportSummary
 
 import HeartValveLib
-from HeartValveLib.helpers import getSpecificHeartValveModelNodesMatchingPhaseAndType, getFirstValveModelNodeMatchingPhaseAndType, \
-  isMRBFile, getAllFilesWithExtension, getValvePhaseShortName
+from HeartValveLib.helpers import (
+  getSpecificHeartValveModelNodesMatchingPhaseAndType,
+  getFirstValveModelNodeMatchingPhaseAndType,
+  isMRBFile,
+  getAllFilesWithExtension,
+  getValvePhaseShortName
+)
 
 from typing import Optional
 
@@ -73,6 +79,7 @@ class Exporter(object):
 
   def __init__(self,
                valve_type : str,
+               reference_phase : str,
                cardiac_phase_frames: Optional[list],
                input_data=None,
                output_directory=None,
@@ -89,7 +96,6 @@ class Exporter(object):
                annulus_contour_label=False,
                annulus_contour_model=False,
                annulus_phases=None,
-               additional_frame_range=None,
                run_quantification=False,
                save_log_file=False):
     """
@@ -98,6 +104,7 @@ class Exporter(object):
     self.valveType = valve_type
     self.inputData = input_data
 
+    self.referencePhase = reference_phase
     self.cardiacPhases = cardiac_phase_frames
 
     self.outputDir = output_directory
@@ -118,7 +125,6 @@ class Exporter(object):
     self.exportAnnulusContourModel = annulus_contour_model
     self.annulusPhases = annulus_phases if annulus_phases else self.cardiacPhases
 
-    self.additionalFrameRange = additional_frame_range
     self.runQuantification = run_quantification
 
     self.saveLogs = save_log_file
@@ -160,7 +166,7 @@ class Exporter(object):
   def _processScene(self):
     try:
       if self.runQuantification:
-        computePhaseMetrics(self.cardiacPhases[0])
+        computePhaseMetrics(self.referencePhase)
       self._composeExport()
       satisfied, messages = self._builder.requirementsSatisfied()
       if satisfied:
@@ -176,7 +182,7 @@ class Exporter(object):
       ExportItem.cleanup()
 
   def _composeExport(self):
-    referenceValveModel = getFirstValveModelNodeMatchingPhaseAndType(self.cardiacPhases[0], self._valveType)
+    referenceValveModel = getFirstValveModelNodeMatchingPhaseAndType(self.referencePhase, self._valveType)
     ExportItem.probeToRasTransform = cloneMRMLNode(referenceValveModel.getProbeToRasTransformNode())
     voxelSpacing = getFinalVoxelSpacing(self.voxelSpacing, self.minValveHeightVxl, referenceValveModel)
     self.initializeReferenceVolumeNode(referenceValveModel, voxelSpacing, self.volumeDimensions)
@@ -185,22 +191,64 @@ class Exporter(object):
 
     self._builder = ExportBuilder()
 
-    if self.additionalFrameRange:
-      print(f"Adding addition frame range {self.additionalFrameRange} around {getValvePhaseShortName(referenceValveModel)}")
-      self._builder.add_export_item(AdditionalFrames(referenceValveModel, self.additionalFrameRange))
+    self._addCardiacFramesToExport(referenceValveModel)
 
-    for valveModel in self.getRequestedValveModels(self.cardiacPhases, self.valveType):
-      self._builder.add_export_item(PhaseFrame(valveModel, valveModel is referenceValveModel))
-      phaseShortName = getValvePhaseShortName(valveModel)
+    if self.exportAnnulusContourLabel or self.exportAnnulusContourModel:
+      self._addAnnulusToExport()
 
-      if (self.exportAnnulusContourLabel or self.exportAnnulusContourModel) and phaseShortName in self.annulusPhases:
-        self._builder.add_export_item(Annulus(valveModel, self.exportAnnulusContourLabel, self.exportAnnulusContourModel))
-      if self.annulusLabels and phaseShortName in self.annulusLabelPhases:
-        self._builder.add_export_item(LandmarkLabels(valveModel, self.annulusLabels))
-      if self.exportLandmarks and phaseShortName in self.landmarkPhases:
-        self._builder.add_export_item(Landmarks(valveModel))
-      if self.exportSegmentation and phaseShortName in self.segmentationPhases:
-        self._builder.add_export_item(Segmentation(valveModel, self.oneFilePerSegment))
+    if self.annulusLabels:
+      self._addLandmarkLabelsToExport()
+
+    if self.exportLandmarks:
+      self._addLandmarksToExport()
+
+    if self.exportSegmentation:
+      self._addSegmentationToExport()
+
+  def _addCardiacFramesToExport(self, referenceValveModel):
+    for valveDataClass in getValveModelsWithPhaseNames(self.cardiacPhases, self.valveType):
+      self._builder.add_export_item(
+        PhaseFrame(valveDataClass.valveModel,
+                   valveDataClass.valveModel is referenceValveModel,
+                   phase=valveDataClass.phase,
+                   suffix=valveDataClass.suffix)
+      )
+
+  def _addAnnulusToExport(self):
+    for valveDataClass in getValveModelsWithPhaseNames(self.annulusPhases, self.valveType):
+      self._builder.add_export_item(
+        Annulus(valveDataClass.valveModel,
+                self.exportAnnulusContourLabel,
+                self.exportAnnulusContourModel,
+                phase=valveDataClass.phase,
+                suffix=valveDataClass.suffix)
+      )
+
+  def _addLandmarkLabelsToExport(self):
+    for valveDataClass in getValveModelsWithPhaseNames(self.annulusLabelPhases, self.valveType):
+      self._builder.add_export_item(
+        LandmarkLabels(valveDataClass.valveModel,
+                       self.annulusLabels,
+                       phase=valveDataClass.phase,
+                       suffix=valveDataClass.suffix)
+      )
+
+  def _addLandmarksToExport(self):
+    for valveDataClass in getValveModelsWithPhaseNames(self.landmarkPhases, self.valveType):
+      self._builder.add_export_item(
+        Landmarks(valveDataClass.valveModel,
+                  phase=valveDataClass.phase,
+                  suffix=valveDataClass.suffix)
+      )
+
+  def _addSegmentationToExport(self):
+    for valveDataClass in getValveModelsWithPhaseNames(self.segmentationPhases, self.valveType):
+      self._builder.add_export_item(
+        Segmentation(valveDataClass.valveModel,
+                     self.oneFilePerSegment,
+                     phase=valveDataClass.phase,
+                     suffix=valveDataClass.suffix)
+      )
 
   def loadScene(self, mrbFile):
     try:

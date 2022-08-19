@@ -15,13 +15,13 @@ class Landmarks(ExportItem):
     return valid, \
            None if valid else f"No Annulus Labels Markup Node found for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel, phase=None):
-    super(Landmarks, self).__init__(valveModel, phase)
+  def __init__(self, valveModel, phase=None, suffix=""):
+    super(Landmarks, self).__init__(valveModel, phase, suffix)
 
   def __call__(self):
     logger = self.getLogger()
     landmarksNode = cloneMRMLNode(self._valveModel.getAnnulusLabelsMarkupNode())
-    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-landmarks"
+    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-landmarks{self._suffix}"
     outputDirectory = self.outputDir / folderName
     outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.fcsv"
     outputDirectory.mkdir(exist_ok=True)
@@ -40,8 +40,8 @@ class LandmarkLabels(ExportItem):
                 f"{[f'{a}={b}' for a,b in zip(self.landmarkLabels, positions)]}"
       return False, message
 
-  def __init__(self, valveModel, landmarkLabels, phase=None):
-    super(LandmarkLabels, self).__init__(valveModel, phase)
+  def __init__(self, valveModel, landmarkLabels, phase=None, suffix=""):
+    super(LandmarkLabels, self).__init__(valveModel, phase, suffix)
     self.landmarkLabels = landmarkLabels if landmarkLabels else []
 
   def __call__(self):
@@ -52,7 +52,7 @@ class LandmarkLabels(ExportItem):
         logger.debug(f"Couldn't find landmark label {landmarkLabel}")
         continue
       labelNode = getLabelFromLandmarkPosition(landmarkLabel, landmarkPosition, self.referenceVolumeNode)
-      folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{landmarkLabel}"
+      folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{landmarkLabel}{self._suffix}"
       outputDirectory = self.outputDir / folderName
       outputDirectory.mkdir(exist_ok=True)
       outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz"
@@ -70,8 +70,8 @@ class Segmentation(ExportItem):
     return valid, None if valid else "No leaflet segmentation node could be found " \
                                      "for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel, oneFilePerSegment, phase=None):
-    super(Segmentation, self).__init__(valveModel, phase)
+  def __init__(self, valveModel, oneFilePerSegment, phase=None, suffix=""):
+    super(Segmentation, self).__init__(valveModel, phase, suffix)
     self._oneFilePerSegment = oneFilePerSegment
 
   def __call__(self):
@@ -85,8 +85,9 @@ class Segmentation(ExportItem):
       return
     SegmentationHelper.checkAndSortSegments(segmentationNode, self._valveModel.getValveType())
     # Smoothing
+    segmentationNode.SetDisplayVisibility(True)
     SegmentationHelper.postProcessSegmentation(segmentationNode, removeIslands=True) #, smoothingFactor=0.3)
-    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.SEGMENTATION_OUTPUT_DIR_NAME}"
+    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.SEGMENTATION_OUTPUT_DIR_NAME}{self._suffix}"
     outputDirectory = self.outputDir / folderName
     outputDirectory.mkdir(parents=True, exist_ok=True)
     if self._oneFilePerSegment:
@@ -126,8 +127,8 @@ class Annulus(ExportItem):
     return valid, None if valid else "No annulus contour model node could be found " \
                                      "for phase {getValvePhaseShortName(self._valveModel)}"
 
-  def __init__(self, valveModel, asLabel=False, asModel=False, phase=None):
-    super(Annulus, self).__init__(valveModel, phase)
+  def __init__(self, valveModel, asLabel=False, asModel=False, phase=None, suffix=""):
+    super(Annulus, self).__init__(valveModel, phase, suffix)
     self._outputFormats = []
     if asLabel is True:
       self._outputFormats.append(".nii.gz")
@@ -135,7 +136,7 @@ class Annulus(ExportItem):
       self._outputFormats.append(".vtk")
 
   def __call__(self):
-    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}"
+    folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}{self._suffix}"
     outputDirectory = self.outputDir / folderName
     outputDirectory.mkdir(parents=True, exist_ok=True)
     for outputFormat in self._outputFormats:
@@ -145,7 +146,7 @@ class Annulus(ExportItem):
         node = self.getAnnulusLabel()
       outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}{outputFormat}"
       self.getLogger().debug(f"Exporting annulus to {outputFile}")
-      self.saveNode(node, outputFile, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}")
+      self.saveNode(node, outputFile, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.ANNULI_OUTPUT_DIR_NAME}{self._suffix}")
       slicer.mrmlScene.RemoveNode(node)
 
   def getAnnulusLabel(self):
@@ -204,8 +205,8 @@ class PhaseFrame(ExportItem):
       return False, exc
     return True, None
 
-  def __init__(self, valveModel, isReferenceFrame=False, phase=None):
-    super(PhaseFrame, self).__init__(valveModel, phase)
+  def __init__(self, valveModel, isReferenceFrame=False, phase=None, suffix=""):
+    super(PhaseFrame, self).__init__(valveModel, phase, suffix)
     self._isReferenceVolume = isReferenceFrame
 
   def getVolumeFrame(self):
@@ -218,7 +219,7 @@ class PhaseFrame(ExportItem):
   def __call__(self):
     volumeNode = self.getVolumeFrame()
     if self.outputDir is not None:
-      folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.PHASE_FRAME_OUTPUT_DIR_NAME}"
+      folderName = f"{PHASES_DIRECTORY_MAPPING[self.phase]}-{self.PHASE_FRAME_OUTPUT_DIR_NAME}{self._suffix}"
       outputDirectory = self.outputDir / folderName
       outputDirectory.mkdir(parents=True, exist_ok=True)
       outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz"

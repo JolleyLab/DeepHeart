@@ -21,6 +21,8 @@ def main(argv):
   parser.add_argument("-vh", "--minimum_valve_voxel_height", metavar="HEIGHT", type=int, help="min valve voxel height")
   parser.add_argument("-ph", "--cardiac_phase_frames", metavar="PHASE_SHORTNAME", type=str, nargs="+", default=["MS"],
                       help="cardiac phases which will be exported")
+  parser.add_argument("-rp", "--reference_phase", metavar="STR", type=str,
+                      help="phase to be used as reference phase frame")
   parser.add_argument("-am", "--annulus_contour_model", action='store_true', help="export annulus contour model (.vtk)")
   parser.add_argument("-al", "--annulus_contour_label", action='store_true', help="annulus contour label (.nii.gz")
   parser.add_argument("-l", "--export_annulus_landmarks", action='store_true', help="export annulus landmarks (.fcsv)")
@@ -32,8 +34,6 @@ def main(argv):
                       help="export specific annulus landmark(s) as labels to sub-directory equivalent to landmark name")
   parser.add_argument("-llp", "--landmark_label_phases", metavar="PHASE_SHORTNAME", type=str, nargs="+",
                       help="cardiac phases from which landmarks labels will get exported")
-  parser.add_argument('-af', "--additional_frame_range", metavar='N', type=int, nargs=2,
-                      help='range of frames to be exported around MS frame')
   parser.add_argument('-t', "--valve_type", metavar='STRING', type=str,
                       help='valve type of the input data (used for sub-directory creation)')
   parser.add_argument("-qf", "--run_quantification", action='store_true', help="run quantification before exporting")
@@ -61,6 +61,7 @@ def main(argv):
   exporter = Exporter(valve_type=args.valve_type,
                       input_data=args.input_data,
                       output_directory=output_directory,
+                      reference_phase=args.reference_phase,
                       cardiac_phase_frames=args.cardiac_phase_frames,
                       voxel_spacing=args.voxel_spacing,
                       volume_dimensions=args.volume_dimensions,
@@ -75,7 +76,6 @@ def main(argv):
                       annulus_contour_model=args.annulus_contour_model,
                       annulus_phases=args.cardiac_phase_frames,
                       landmark_label_phases=args.landmark_label_phases,
-                      additional_frame_range=args.additional_frame_range,
                       run_quantification=args.run_quantification)
   exporter.export()
 

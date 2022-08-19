@@ -89,9 +89,10 @@ class ExportItem(ABC):
       cls.exportSummarizer.add_export_item(kind, outputFile)
     return slicer.util.saveNode(node, str(outputFile))
 
-  def __init__(self, valveModel, phase=None):
+  def __init__(self, valveModel, phase=None, suffix=""):
     self._valveModel = valveModel
     self._phase = phase
+    self._suffix = suffix
 
   @abstractmethod
   def __call__(self):

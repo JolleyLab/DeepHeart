@@ -214,3 +214,69 @@ def getVolumeCloneWithProperties(volumeNode,
     imageData.SetDimensions(volumeDimensions)
   imageData.AllocateScalars(imageData.GetScalarType(), 1)
   return clonedVolume
+
+
+from dataclasses import dataclass
+from HeartValveLib.ValveModel import ValveModel
+
+@dataclass
+class ValveDataClass:
+  valveModel: ValveModel
+  phase: str
+  suffix: str = ""
+
+
+def getValveModelsWithPhaseNames(phaseNames, valveType):
+  """ get all valve models matching the requested phase names
+    :param phaseNames: list of strings (e.g. ["MS-1", "MS", "MS+1"])
+    :param valveType:
+
+    :return: list of ValveDataClass objects
+  """
+  from HeartValveLib.helpers import getAllHeartValveModelsForValveType
+  valveModels = getAllHeartValveModelsForValveType(valveType)
+  cache = {}
+  vms = []
+  for shortName in phaseNames:
+    shortName = shortName.replace(" ", "").strip() # strip white spaces e.g. when 'MS + 1 '
+    prefix, incrementor = getPhaseShortNameAndNumber(shortName)
+    try:
+      valveModel = cache[prefix]
+    except KeyError:
+      valveModel = getFirstValveModelMatchingShortName(valveModels, prefix)
+      cache[prefix] = valveModel
+
+    if int(incrementor) != 0:
+      from HeartValveLib.helpers import getFirstValveModelNodeMatchingSequenceIndexAndValveType
+      valveModel = getFirstValveModelNodeMatchingSequenceIndexAndValveType(
+          valveModel.getValveVolumeSequenceIndex() + int(incrementor), valveModel.getValveType())
+    vms.append(ValveDataClass(valveModel, prefix, incrementor if int(incrementor) != 0 else ""))
+  return vms
+
+
+def getFirstValveModelMatchingShortName(valveModels, shortname):
+  from HeartValveLib.helpers import getValvePhaseShortName
+  for valveModel in valveModels:
+    if getValvePhaseShortName(valveModel) == shortname:
+      return valveModel
+  raise ValueError(f"Could not find valve with cardiac cycle phase {shortname}")
+
+
+def getPhaseShortNameAndNumber(shortName):
+  """ returns phase shortname and any additional number
+
+  e.g.
+    MS+1 would return MS, +1
+    MS returns MS, 0
+    MS - 1 returns MS, -1
+
+  :param shortName:
+  :return:
+  """
+  for op in ["-", "+"]:
+    try:
+      prefix, suffix = shortName.split(op)
+      return prefix, op+suffix
+    except ValueError:
+      continue
+  return shortName, "0"
