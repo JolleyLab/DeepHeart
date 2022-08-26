@@ -28,6 +28,7 @@ PARAM_DEFAULTS = {
 
 }
 
+
 class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   """This effect uses Watershed algorithm to partition the input volume"""
 
@@ -78,17 +79,17 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     uiWidget = slicer.util.loadUI(self.resourcePath(f"UI/{self.moduleName}.ui"))
     self.scriptedEffect.addOptionsWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
-    self.ui.fetchServerInfoButton.setIcon(self.icon("refresh-icon.png"))
+    self.ui.refreshServerInfoButton.setIcon(self.icon("refresh-icon.png"))
 
     settings = qt.QSettings()
-    self.ui.serverComboBox.currentText = settings.value("DeepHeart/serverUrl", "http://127.0.0.1:8000")
-    self.ui.progressBar.hide()
+    self.ui.dhServerComboBox.currentText = settings.value("DeepHeart/serverUrl", "http://127.0.0.1:8000")
+    self.ui.dhProgressBar.hide()
     self.ui.statusLabel.hide()
 
-    self.ui.fetchServerInfoButton.connect("clicked(bool)", self.onClickFetchInfo)
-    self.ui.serverComboBox.connect("currentIndexChanged(int)", self.onClickFetchInfo)
-    self.ui.segmentationModelSelector.connect("currentIndexChanged(int)", self.onSegmentationModelSelected)
-    self.ui.segmentationButton.connect("clicked(bool)", self.onClickSegmentation)
+    self.ui.refreshServerInfoButton.clicked.connect(self.onClickFetchInfo)
+    self.ui.dhServerComboBox.connect("currentIndexChanged(int)", self.onClickFetchInfo)
+    self.ui.dhModelSelector.connect("currentIndexChanged(int)", self.onSegmentationModelSelected)
+    self.ui.runButton.connect("clicked(bool)", self.onClickSegmentation)
 
     self._heartValveSelection = dict()
     self.updateServerUrlGUIFromSettings()
@@ -110,16 +111,16 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
   def onClickFetchInfo(self):
     self.saveServerUrl()
-    self.ui.appComboBox.clear()
-    self.ui.segmentationModelSelector.clear()
-    self.ui.segmentationButton.setEnabled(False)
+    self.ui.dhAppComboBox.clear()
+    self.ui.dhModelSelector.clear()
+    self.ui.runButton.setEnabled(False)
 
-    serverUrl = self.ui.serverComboBox.currentText
+    serverUrl = self.ui.dhServerComboBox.currentText
     info = self.logic.fetchInfo(serverUrl)
     if not info:
       return
 
-    self.ui.appComboBox.addItem(info.get("name", ""))
+    self.ui.dhAppComboBox.addItem(info.get("name", ""))
 
     from HeartValveLib.helpers import getValveModelForSegmentationNode
     segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
@@ -133,11 +134,11 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       self.ui.statusLabel.show()
       qt.QTimer.singleShot(10000, lambda: self.ui.statusLabel.hide())
     else:
-      self._updateModelSelector(self.ui.segmentationModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
+      self._updateModelSelector(self.ui.dhModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
 
   def saveServerUrl(self):
     settings = qt.QSettings()
-    serverUrl = self.ui.serverComboBox.currentText
+    serverUrl = self.ui.dhServerComboBox.currentText
     settings.setValue("DeepHeart/serverUrl", serverUrl)
     self._updateServerHistory(serverUrl)
     
@@ -173,12 +174,12 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     settings = qt.QSettings()
     serverUrlHistory = settings.value("DeepHeart/serverUrlHistory")
 
-    wasBlocked = self.ui.serverComboBox.blockSignals(True)
-    self.ui.serverComboBox.clear()
+    wasBlocked = self.ui.dhServerComboBox.blockSignals(True)
+    self.ui.dhServerComboBox.clear()
     if serverUrlHistory:
-      self.ui.serverComboBox.addItems(serverUrlHistory.split(";"))
-    self.ui.serverComboBox.setCurrentText(settings.value("DeepHeart/serverUrl"))
-    self.ui.serverComboBox.blockSignals(wasBlocked)
+      self.ui.dhServerComboBox.addItems(serverUrlHistory.split(";"))
+    self.ui.dhServerComboBox.setCurrentText(settings.value("DeepHeart/serverUrl"))
+    self.ui.dhServerComboBox.blockSignals(wasBlocked)
 
   def createCursor(self, widget):
     # Turn off effect-specific cursor for this effect
@@ -191,28 +192,28 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     pass
 
   def updateProgress(self, value):
-    self.ui.progressBar.setValue(value)
-    self.ui.progressBar.setStyleSheet(
+    self.ui.dhProgressBar.setValue(value)
+    self.ui.dhProgressBar.setStyleSheet(
      """
-      QProgressBar {
+      QdhProgressBar {
         text-align: center;
       }
-      QProgressBar::chunk {
+      QdhProgressBar::chunk {
         background-color: qlineargradient(x0: 0, x2: 1, stop: 0 orange, stop:1 green )
       }
       """
     )
 
-    self.ui.progressBar.setFormat(PROGRESS_VALUES[value])
+    self.ui.dhProgressBar.setFormat(PROGRESS_VALUES[value])
     slicer.app.processEvents()
     if value == 100:
-      self.ui.progressBar.hide()
+      self.ui.dhProgressBar.hide()
     else:
-      self.ui.progressBar.show()
+      self.ui.dhProgressBar.show()
 
   def onSegmentationModelSelected(self):
-    segmentationModelIndex = self.ui.segmentationModelSelector.currentIndex
-    self.ui.segmentationButton.setEnabled(self.ui.segmentationModelSelector.itemText(segmentationModelIndex) != "")
+    segmentationModelIndex = self.ui.dhModelSelector.currentIndex
+    self.ui.runButton.setEnabled(self.ui.dhModelSelector.itemText(segmentationModelIndex) != "")
 
     # hide all selectors
     for modelName in self._heartValveSelection.keys():
@@ -221,7 +222,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         label.hide()
         selector.hide()
 
-    modelName = self.ui.segmentationModelSelector.currentText
+    modelName = self.ui.dhModelSelector.currentText
     if not modelName:
       return
 
@@ -273,8 +274,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       slicer.util.pip_install("nibabel")
 
     segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
-    modelName = self.ui.segmentationModelSelector.currentText
-    serverUrl = self.ui.serverComboBox.currentText
+    modelName = self.ui.dhModelSelector.currentText
+    serverUrl = self.ui.dhServerComboBox.currentText
 
     from HeartValveLib.helpers import getValveModelForSegmentationNode
     valveModel = getValveModelForSegmentationNode(segmentationNode)

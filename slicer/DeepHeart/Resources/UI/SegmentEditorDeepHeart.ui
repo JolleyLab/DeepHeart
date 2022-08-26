@@ -21,16 +21,12 @@
       </widget>
      </item>
      <item row="2" column="2">
-      <widget class="QPushButton" name="segmentationButton">
+      <widget class="QPushButton" name="runButton">
        <property name="enabled">
         <bool>false</bool>
        </property>
        <property name="text">
         <string>Run</string>
-       </property>
-       <property name="icon">
-        <iconset>
-         <normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/monai-label-icon.png</iconset>
        </property>
       </widget>
      </item>
@@ -42,7 +38,7 @@
       </widget>
      </item>
      <item row="0" column="1">
-      <widget class="QComboBox" name="serverComboBox">
+      <widget class="QComboBox" name="dhServerComboBox">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -58,7 +54,7 @@
       </widget>
      </item>
      <item row="2" column="1">
-      <widget class="QComboBox" name="segmentationModelSelector">
+      <widget class="QComboBox" name="dhModelSelector">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -71,7 +67,7 @@
       </widget>
      </item>
      <item row="0" column="2">
-      <widget class="QPushButton" name="fetchServerInfoButton">
+      <widget class="QPushButton" name="refreshServerInfoButton">
        <property name="enabled">
         <bool>true</bool>
        </property>
@@ -81,21 +77,17 @@
        <property name="text">
         <string/>
        </property>
-       <property name="icon">
-        <iconset>
-         <normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/refresh-icon.png</normaloff>../../../../MONAILabel/plugins/slicer/MONAILabel/Resources/UI/refresh-icon.png</iconset>
-       </property>
       </widget>
      </item>
      <item row="5" column="0" colspan="3">
-      <widget class="QProgressBar" name="progressBar">
+      <widget class="QProgressBar" name="dhProgressBar">
        <property name="value">
         <number>0</number>
        </property>
       </widget>
      </item>
      <item row="1" column="1" colspan="2">
-      <widget class="QComboBox" name="appComboBox"/>
+      <widget class="QComboBox" name="dhAppComboBox"/>
      </item>
      <item row="0" column="0">
       <widget class="QLabel" name="label_4">
