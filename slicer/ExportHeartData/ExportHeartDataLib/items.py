@@ -123,7 +123,7 @@ class Annulus(ExportItem):
     pass
 
   def verify(self):
-    valid = self._valveModel.getAnnulusContourModelNode() is not None
+    valid = self._valveModel.getAnnulusContourMarkupNode() is not None
     return valid, None if valid else "No annulus contour model node could be found " \
                                      "for phase {getValvePhaseShortName(self._valveModel)}"
 
@@ -141,7 +141,10 @@ class Annulus(ExportItem):
     outputDirectory.mkdir(parents=True, exist_ok=True)
     for outputFormat in self._outputFormats:
       if outputFormat == ".vtk":
-        node = cloneMRMLNode(self._valveModel.getAnnulusContourModelNode())
+        from HeartValveLib.util import createTubeModelFromPointArray
+        node = \
+          createTubeModelFromPointArray(slicer.util.arrayFromMarkupsCurvePoints(self._valveModel.annulusContourCurve),
+                                        radius=self._valveModel.getAnnulusContourRadius())[0]
       else:
         node = self.getAnnulusLabel()
       outputFile = outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}{outputFormat}"

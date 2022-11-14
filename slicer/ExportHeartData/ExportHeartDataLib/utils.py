@@ -29,9 +29,10 @@ def getRandomDirectoryName():
 
 
 def getValveThickness(valveModel):
+  import slicer
   import HeartValveLib
   import ExportHeartDataLib.segmentation_utils as SegmentationHelper
-  annulusPoints = valveModel.annulusContourCurve.getInterpolatedPointsAsArray()
+  annulusPoints = slicer.util.arrayFromMarkupsCurvePoints(valveModel.annulusContourCurve).T
   [planePosition, planeNormal] = valveModel.getAnnulusContourPlane()
   [annulusPointsProjected, _, _] = HeartValveLib.getPointsProjectedToPlane(annulusPoints, planePosition, planeNormal)
   annulusAreaPolyData = createPolyDataFromPolygon(annulusPointsProjected.T)
@@ -100,7 +101,11 @@ def getSurfaceArea(polydata):
 def getSegmentationFromAnnulusContourNode(valveModel, referenceVolume):
   import slicer
   import ExportHeartDataLib.segmentation_utils as SegmentationHelper
-  annulusModelNode = cloneMRMLNode(valveModel.getAnnulusContourModelNode())
+  from HeartValveLib.util import createTubeModelFromPointArray
+  annulusMarkupsCurve = valveModel.annulusContourCurve
+  annulusModelNode = \
+    createTubeModelFromPointArray(slicer.util.arrayFromMarkupsCurvePoints(annulusMarkupsCurve),
+                                  radius=valveModel.getAnnulusContourRadius() * 2)[0]
   annulusModelNode.SetAndObserveTransformNodeID(None)
   segmentationNode = SegmentationHelper.getNewSegmentationNodeFromModel(referenceVolume, annulusModelNode)
   slicer.mrmlScene.RemoveNode(annulusModelNode)
