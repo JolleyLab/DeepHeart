@@ -433,7 +433,7 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
 
     progressCallback(75)
     result_file, params = client.infer(model=modelName,
-                                       image_in=image_in,
+                                       image_id=image_in,
                                        params={},
                                        session_id=sessionId)
 
