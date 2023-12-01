@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 
 from lib import VNet
+from monai.networks.layers.factories import Norm
+from monai.networks.nets import UNet
 from lib.infer import *
 
 from monailabel.interfaces.app import MONAILabelApp
@@ -147,17 +149,33 @@ class MyApp(MONAILabelApp):
                         'mid-systolic-PMC'
                     ]
                 ),
-            # "Diastolic__Annulus__Commissures":
-            #     TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(model_paths[3],
-            #                                                      UNet(spatial_dims=3,
-            #                                                           in_channels=5,
-            #                                                           out_channels=4,
-            #                                                           channels=(16, 32, 64, 128, 256),
-            #                                                           strides=(2, 2, 2, 2),
-            #                                                           num_res_units=2,
-            #                                                           norm=Norm.BATCH,
-            #                                                           adn_ordering="NDA")
-            #                                                      ),
+            "Tricuspid_MD__Annulus__Commissures":
+                TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(
+                    model_paths[5],
+                    network=UNet(
+                        spatial_dims=3,
+                        in_channels=5,
+                        out_channels=4,
+                        channels=(16, 32, 64, 128, 256),
+                        strides=(2, 2, 2, 2),
+                        num_res_units=2,
+                        norm=Norm.BATCH,
+                        adn_ordering="NDA"
+                    ),
+                    labels=tricuspid_labels,
+                    valve_type="tricuspid",
+                    cardiac_phase_frames=["MD"],
+                    landmark_label_phases=["MD"],
+                    annulus_phases=["MD"],
+                    landmark_labels=["APC", "ASC", "PSC"],
+                    export_keys=[
+                        'mid-diastolic-images',
+                        'mid-diastolic-annulus',
+                        'mid-diastolic-APC',
+                        'mid-diastolic-ASC',
+                        'mid-diastolic-PSC'
+                    ]
+                ),
         }
 
     def init_strategies(self):

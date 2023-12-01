@@ -4,6 +4,7 @@ import torch
 
 from monai.transforms import (
     LoadImaged,
+    EnsureTyped,
     ToTensord,
     ScaleIntensityd,
     AsDiscreted,
@@ -12,7 +13,8 @@ from monai.transforms import (
     SqueezeDimd,
     Activationsd,
     SplitChanneld,
-    KeepLargestConnectedComponentd
+    KeepLargestConnectedComponentd,
+    NormalizeIntensityd
 )
 
 from monailabel.transform.post import Restored
@@ -222,51 +224,26 @@ class LavvInferenceTaskTwoPhaseAnnCom(SlicerHeartInference):
         ]
 
 
+class TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
+    """ This model requires input of:
+      - mid systolic frame
+      - annulus label
+      - commissure labels: "APC", "ASC", "PSC"
+    """
 
-# class TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(TricuspidInference):
-#     """ This model requires input of:
-#       - mid systolic frame
-#       - annulus label
-#       - commissure labels: "APC", "ASC", "PSC"
-#     """
-#
-#     def getCardiacPhaseFrames(self):
-#         return ["MD"]
-#
-#     def getLandmarkLabelPhases(self):
-#         return ["MD"]
-#
-#     def getAnnulusPhases(self):
-#         return ["MD"]
-#
-#     def getLandmarkLabels(self):
-#         return {
-#             "tricuspid": ["APC", "ASC", "PSC"],
-#             "lavv": ["SIC", "ALC", "PMC"]
-#         }
-#
-#     def getExportKeys(self):
-#         return [
-#             'mid-diastolic-images',
-#             'mid-diastolic-annulus',
-#             'mid-diastolic-APC',
-#             'mid-diastolic-ASC',
-#             'mid-diastolic-PSC'
-#         ]
-#
-#     def pre_transforms(self, data=None):
-#         all_keys = ["image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
-#         return [
-#             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-#             SplitChanneld(keys=Keys.IMAGE, output_postfixes=["md", "annulus", "apc", "asc", "psc"], channel_dim=0),
-#             DistanceTransformd(keys=all_keys[1:]),
-#             NormalizeIntensityd(keys="image_md", nonzero=True),
-#             ScaleIntensityd(
-#                 keys=all_keys,
-#                 minv=0.0,
-#                 maxv=1.0
-#             ),
-#             ToTensord(keys=all_keys),
-#             ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0),
-#             EnsureTyped(keys=Keys.IMAGE)
-#         ]
+    def pre_transforms(self, data=None):
+        all_keys = ["image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
+        return [
+            LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
+            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["md", "annulus", "apc", "asc", "psc"], channel_dim=0),
+            DistanceTransformd(keys=all_keys[1:]),
+            NormalizeIntensityd(keys="image_md", nonzero=True),
+            ScaleIntensityd(
+                keys=all_keys,
+                minv=0.0,
+                maxv=1.0
+            ),
+            ToTensord(keys=all_keys),
+            ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0),
+            EnsureTyped(keys=Keys.IMAGE)
+        ]
