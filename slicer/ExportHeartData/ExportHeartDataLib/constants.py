@@ -15,6 +15,7 @@ PHASES_DIRECTORY_MAPPING = {
 LANDMARK_LABELS = {
   "mitral": ['PM', 'A', 'AL', 'P'],
   "tricuspid": ['A', 'L', 'P', 'S'],
+  "lavv": ['ALC', 'SIC', 'PMC'],
   "cavc": ['MP', 'L', 'MA', 'R']
 }
 

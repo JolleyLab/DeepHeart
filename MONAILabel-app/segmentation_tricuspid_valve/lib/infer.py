@@ -1,7 +1,6 @@
 from monai.inferers import SimpleInferer
 from monai.engines.utils import CommonKeys as Keys
 import torch
-from abc import abstractmethod
 
 from monai.transforms import (
     LoadImaged,
@@ -17,30 +16,53 @@ from monai.transforms import (
 )
 
 from monailabel.transform.post import Restored
-from monailabel.interfaces.tasks.infer import InferTask, InferType
+from monailabel.interfaces.tasks.infer import InferTask
 
-from .transforms import DistanceTransformd, MergeLabelsd
+from .transforms import DistanceTransformd
 
 
-class TricuspidInference(InferTask):
+class SlicerHeartInference(InferTask):
     """
     This provides Inference Engine for pre-trained tricuspid valve segmentation (VNet) model.
     """
-
 
     def __init__(
         self,
         path,
         network=None,
         type="DeepHeartSegmentation",
-        labels=("tricuspid anterior leaflet",
-                "tricuspid posterior leaflet",
-                "tricuspid septal leaflet"), # NB: label names correspond to SlicerHeart terminology
+        labels=None, # NB: label names correspond to SlicerHeart terminology
         dimension=3,
-        description="A pre-trained model for volumetric (3D) segmentation of tricuspid valve from 3DE image",
+        description="A pre-trained model for volumetric (3D) segmentation of SlicerHeart valve from 3DE image",
+        spatial_size=(224,224,224),
+        voxel_spacing=0.25,
+        landmark_label_phases=None,
+        annulus_phases=None,
+        valve_type=None,
+        cardiac_phase_frames=None,
+        landmark_labels=None,
+        export_keys=None
     ):
-        config = self.get_config()
+        self._spatial_size = spatial_size
+        self._voxel_spacing = voxel_spacing
 
+        if landmark_label_phases is None:
+            landmark_label_phases = ["MS"]
+        self._landmark_label_phases = landmark_label_phases
+
+        if annulus_phases is None:
+            annulus_phases = ["MS"]
+        self._annulus_phases = annulus_phases
+
+        self._valve_type = valve_type
+
+        self._cardiac_phase_frames = cardiac_phase_frames
+        self._landmark_labels = landmark_labels
+
+        # NB: SlicerHeart ExportHeartData export keys
+        self._export_keys = export_keys
+
+        config = self.get_config()
         super().__init__(
             path=path,
             network=network,
@@ -58,50 +80,23 @@ class TricuspidInference(InferTask):
             "dimension": self.dimension,
             "description": self.description,
             "config": self.config(),
-            "valve_type": self.getValveType(),
+            "valve_type": self._valve_type,
         }
 
     def get_config(self):
         return {
             "device": "cuda" if torch.cuda.is_available() else "cpu",
             "model_attributes": {
-                "valve_type": self.getValveType(),
-                "cardiac_phase_frames": self.getCardiacPhaseFrames(),
-                "landmark_labels": self.getLandmarkLabels(),
-                "landmark_label_phases": self.getLandmarkLabelPhases(),
-                "annulus_phases": self.getAnnulusPhases(),
-                "volume_dimensions": self.getVolumeDimensions(),
-                "voxel_spacing": self.getVoxelSpacing()
+                "valve_type": self._valve_type,
+                "cardiac_phase_frames": self._cardiac_phase_frames,
+                "landmark_labels": self._landmark_labels,
+                "landmark_label_phases": self._landmark_label_phases,
+                "annulus_phases": self._annulus_phases,
+                "volume_dimensions": self._spatial_size,
+                "voxel_spacing": self._voxel_spacing
             },
-            "export_keys": self.getExportKeys()
+            "export_keys": self._export_keys
         }
-
-    def getValveType(self):
-        return "tricuspid"
-
-    def getVolumeDimensions(self):
-        return [224] * 3
-
-    def getVoxelSpacing(self):
-        return 0.25
-
-    @abstractmethod
-    def getCardiacPhaseFrames(self):
-        pass
-
-    def getLandmarkLabelPhases(self):
-        return ["MS"]
-
-    def getAnnulusPhases(self):
-        return ["MS"]
-
-    @abstractmethod
-    def getLandmarkLabels(self):
-        return None
-
-    @abstractmethod
-    def getExportKeys(self):
-        pass
 
     def inferer(self, data=None):
         return SimpleInferer()
@@ -110,30 +105,18 @@ class TricuspidInference(InferTask):
         return [
             Activationsd(keys=Keys.PRED, softmax=True),
             AsDiscreted(keys=Keys.PRED, argmax=True),
-            KeepLargestConnectedComponentd(keys=Keys.PRED, applied_labels=[1, 2, 3]),
+            KeepLargestConnectedComponentd(keys=Keys.PRED, applied_labels=[1, 2, 3]), # TODO: change to len labels
             SqueezeDimd(keys=Keys.PRED, dim=0),
             ToNumpyd(keys=Keys.PRED),
             Restored(keys=Keys.PRED, ref_image=Keys.IMAGE),
         ]
 
 
-class TricuspidInferenceTaskSinglePhaseAnn(TricuspidInference):
+class SlicerHeartInferenceTaskSinglePhaseAnn(SlicerHeartInference):
     """ This model requires input of:
       - mid systolic frame
       - annulus label
     """
-
-    def getValveType(self):
-        return "tricuspid"
-
-    def getCardiacPhaseFrames(self):
-        return ["MS"]
-
-    def getExportKeys(self):
-        return [
-            'mid-systolic-images',
-            'mid-systolic-annulus'
-        ]
 
     def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_annulus"]
@@ -149,58 +132,12 @@ class TricuspidInferenceTaskSinglePhaseAnn(TricuspidInference):
         ]
 
 
-class TricuspidInferenceTaskTwoPhaseAnn(TricuspidInference):
-    """ This model requires input of:
-      - mid systolic frame
-      - mid diastolic frame
-      - annulus label
-    """
-
-    def getCardiacPhaseFrames(self):
-        return ["MS", "MD"]
-
-    def getExportKeys(self):
-        return [
-            'mid-systolic-images',
-            'mid-diastolic-images',
-            'mid-systolic-annulus'
-        ]
-
-    def pre_transforms(self, data=None):
-        all_keys = ["image_ms", "image_md", "image_annulus"]
-        return [
-            LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus"], channel_dim=0),
-            DistanceTransformd(keys=["image_annulus"]),
-            ScaleIntensityd(
-                keys=["image_ms", "image_md"]
-            ),
-            ToTensord(keys=all_keys),
-            ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0)
-        ]
-
-
-class TricuspidInferenceTaskSinglePhaseAnnCom(TricuspidInference):
+class TricuspidInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
     """ This model requires input of:
       - mid systolic frame
       - annulus label
       - commissure labels: "APC", "ASC", "PSC"
     """
-
-    def getCardiacPhaseFrames(self):
-        return ["MS"]
-
-    def getLandmarkLabels(self):
-        return ["APC", "ASC", "PSC"]
-
-    def getExportKeys(self):
-        return [
-            'mid-systolic-images',
-            'mid-systolic-annulus',
-            'mid-systolic-APC',
-            'mid-systolic-ASC',
-            'mid-systolic-PSC'
-        ]
 
     def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_annulus", "image_apc", "image_asc", "image_psc"]
@@ -218,29 +155,13 @@ class TricuspidInferenceTaskSinglePhaseAnnCom(TricuspidInference):
         ]
 
 
-class TricuspidInferenceTaskTwoPhaseAnnCom(TricuspidInference):
+class TricuspidInferenceTaskTwoPhaseAnnCom(SlicerHeartInference):
     """ This model requires input of:
       - mid systolic frame
       - mid diastolic frame
       - annulus label
       - commissures labels: "APC", "ASC", "PSC"
     """
-
-    def getCardiacPhaseFrames(self):
-        return ["MS", "MD"]
-
-    def getLandmarkLabels(self):
-        return ["APC", "ASC", "PSC"]
-
-    def getExportKeys(self):
-        return [
-            'mid-systolic-images',
-            'mid-diastolic-images',
-            'mid-systolic-annulus',
-            'mid-systolic-APC',
-            'mid-systolic-ASC',
-            'mid-systolic-PSC'
-        ]
 
     def pre_transforms(self, data=None):
         all_keys = ["image_ms", "image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
@@ -256,7 +177,30 @@ class TricuspidInferenceTaskTwoPhaseAnnCom(TricuspidInference):
         ]
 
 
-class TricuspidInferenceTaskTwoPhaseAnnComOneLabel(TricuspidInferenceTaskTwoPhaseAnnCom):
+class LavvInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
+    """ This model requires input of:
+      - mid systolic frame
+      - annulus label
+      - commissure labels: "APC", "ASC", "PSC"
+    """
+
+    def pre_transforms(self, data=None):
+        all_keys = ["image_ms", "image_annulus", "image_sic", "image_alc", "image_pmc"]
+        return [
+            LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
+            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "annulus", "sic", "alc", "pmc"], channel_dim=0),
+            DistanceTransformd(keys=["image_annulus", "image_sic", "image_alc", "image_pmc"]),
+            ScaleIntensityd(
+                keys=["image_ms"],
+                minv=0.0,
+                maxv=1.0
+            ),
+            ToTensord(keys=all_keys),
+            ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0)
+        ]
+
+
+class LavvInferenceTaskTwoPhaseAnnCom(SlicerHeartInference):
     """ This model requires input of:
       - mid systolic frame
       - mid diastolic frame
@@ -265,12 +209,11 @@ class TricuspidInferenceTaskTwoPhaseAnnComOneLabel(TricuspidInferenceTaskTwoPhas
     """
 
     def pre_transforms(self, data=None):
-        all_keys = ["image_ms", "image_md", "image_annulus", "image_commissures"]
+        all_keys = ["image_ms", "image_md", "image_annulus", "image_sic", "image_alc", "image_pmc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "apc", "asc", "psc"], channel_dim=0),
-            MergeLabelsd(keys=["image_apc", "image_asc", "image_psc"], name="image_commissures"),
-            DistanceTransformd(keys=["image_annulus", "image_commissures"]),
+            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "sic", "alc", "pmc"], channel_dim=0),
+            DistanceTransformd(keys=["image_annulus", "image_sic", "image_alc", "image_pmc"]),
             ScaleIntensityd(
                 keys=["image_ms", "image_md"]
             ),
@@ -278,3 +221,52 @@ class TricuspidInferenceTaskTwoPhaseAnnComOneLabel(TricuspidInferenceTaskTwoPhas
             ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0)
         ]
 
+
+
+# class TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(TricuspidInference):
+#     """ This model requires input of:
+#       - mid systolic frame
+#       - annulus label
+#       - commissure labels: "APC", "ASC", "PSC"
+#     """
+#
+#     def getCardiacPhaseFrames(self):
+#         return ["MD"]
+#
+#     def getLandmarkLabelPhases(self):
+#         return ["MD"]
+#
+#     def getAnnulusPhases(self):
+#         return ["MD"]
+#
+#     def getLandmarkLabels(self):
+#         return {
+#             "tricuspid": ["APC", "ASC", "PSC"],
+#             "lavv": ["SIC", "ALC", "PMC"]
+#         }
+#
+#     def getExportKeys(self):
+#         return [
+#             'mid-diastolic-images',
+#             'mid-diastolic-annulus',
+#             'mid-diastolic-APC',
+#             'mid-diastolic-ASC',
+#             'mid-diastolic-PSC'
+#         ]
+#
+#     def pre_transforms(self, data=None):
+#         all_keys = ["image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
+#         return [
+#             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
+#             SplitChanneld(keys=Keys.IMAGE, output_postfixes=["md", "annulus", "apc", "asc", "psc"], channel_dim=0),
+#             DistanceTransformd(keys=all_keys[1:]),
+#             NormalizeIntensityd(keys="image_md", nonzero=True),
+#             ScaleIntensityd(
+#                 keys=all_keys,
+#                 minv=0.0,
+#                 maxv=1.0
+#             ),
+#             ToTensord(keys=all_keys),
+#             ConcatItemsd(keys=all_keys, name=Keys.IMAGE, dim=0),
+#             EnsureTyped(keys=Keys.IMAGE)
+#         ]

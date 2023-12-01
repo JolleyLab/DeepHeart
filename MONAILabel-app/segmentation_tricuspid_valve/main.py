@@ -45,23 +45,119 @@ class MyApp(MONAILabelApp):
             str(model_dir / f"tricuspid_ms_ann_com_{self.device}.pt"),
             str(model_dir / f"tricuspid_ms_md_ann_com_{self.device}.pt"),
             str(model_dir / f"tricuspid_ms_md_ann_com_single_label_{self.device}.pt"),
+            str(model_dir / f"tricuspid_diastolic_ann_com_{self.device}.pt"),
         ]
 
         if strtobool(self.conf.get("use_pretrained_model", "true")) is True:
             # logger.info(f"Pretrained Model Path: {pretrained_model_uri}")
             self.download(model_paths)
 
+        tricuspid_labels = ("tricuspid anterior leaflet", "tricuspid posterior leaflet", "tricuspid septal leaflet")
+        lavv_labels = ("superior bridging leaflet", "inferior bridging leaflet", "left mural leaflet")
         return {
-            "Mid-Systole__Annulus":
-                TricuspidInferenceTaskSinglePhaseAnn(model_paths[0], VNet(**network_params, n_channels=2)),
-            # "Mid-Systole__Mid-Diastole__Annulus":
-            #     TricuspidInferenceTaskTwoPhaseAnn(model_paths[1], VNet(**network_params, n_channels=3)),
-            "Mid-Systole__Annulus__Commissures":
-                TricuspidInferenceTaskSinglePhaseAnnCom(model_paths[2], VNet(**network_params, n_channels=5)),
-            "Mid-Systole__Mid-Diastole__Annulus__Commissures":
-                TricuspidInferenceTaskTwoPhaseAnnCom(model_paths[3], VNet(**network_params, n_channels=6)),
-            # "Mid-Systole__Mid-Diastole__Annulus__Commissures__Alt":
-            #     TricuspidInferenceTaskTwoPhaseAnnComOneLabel(model_paths[4], VNet(**network_params, n_channels=4)),
+            "Tricuspid__MS__Annulus":
+                SlicerHeartInferenceTaskSinglePhaseAnn(
+                    model_paths[0],
+                    network=VNet(**network_params, n_channels=2),
+                    labels=tricuspid_labels,
+                    valve_type="tricuspid",
+                    cardiac_phase_frames=["MS"],
+                    landmark_labels=["APC", "ASC", "PSC"],
+                    export_keys=[
+                        'mid-systolic-images',
+                        'mid-systolic-annulus'
+                    ]
+                ),
+            "Tricuspid__MS__Annulus__Commissures":
+                TricuspidInferenceTaskSinglePhaseAnnCom(
+                    model_paths[2],
+                    VNet(**network_params, n_channels=5),
+                    labels=tricuspid_labels,
+                    valve_type="tricuspid",
+                    cardiac_phase_frames=["MS"],
+                    landmark_labels=["APC", "ASC", "PSC"],
+                    export_keys= [
+                        'mid-systolic-images',
+                        'mid-systolic-annulus',
+                        'mid-systolic-APC',
+                        'mid-systolic-ASC',
+                        'mid-systolic-PSC'
+                    ]
+                ),
+            "Tricuspid__MS__MD__Annulus__Commissures":
+                TricuspidInferenceTaskTwoPhaseAnnCom(
+                    model_paths[3],
+                    network=VNet(**network_params, n_channels=6),
+                    labels=tricuspid_labels,
+                    valve_type="tricuspid",
+                    cardiac_phase_frames=["MS", "MD"],
+                    landmark_labels=["APC", "ASC", "PSC"],
+                    export_keys=[
+                        'mid-systolic-images',
+                        'mid-diastolic-images',
+                        'mid-systolic-annulus',
+                        'mid-systolic-APC',
+                        'mid-systolic-ASC',
+                        'mid-systolic-PSC'
+                    ]
+                ),
+            "LAVV__MS__Annulus":
+                SlicerHeartInferenceTaskSinglePhaseAnn(
+                    model_paths[0],
+                    network=VNet(**network_params, n_channels=2),
+                    labels=lavv_labels,
+                    valve_type="lavv",
+                    cardiac_phase_frames=["MS"],
+                    landmark_labels=["SIC", "ALC", "PMC"],
+                    export_keys=[
+                        'mid-systolic-images',
+                        'mid-systolic-annulus'
+                    ]
+                ),
+            "LAVV__MS__Annulus__Commissures":
+                LavvInferenceTaskSinglePhaseAnnCom(
+                    model_paths[2],
+                    VNet(**network_params, n_channels=5),
+                    labels=lavv_labels,
+                    valve_type="lavv",
+                    cardiac_phase_frames=["MS"],
+                    landmark_labels=["SIC", "ALC", "PMC"],
+                    export_keys=[
+                        'mid-systolic-images',
+                        'mid-systolic-annulus',
+                        'mid-systolic-SIC',
+                        'mid-systolic-ALC',
+                        'mid-systolic-PMC'
+                    ]
+                ),
+            "LAVV__MS__MD__Annulus__Commissures":
+                LavvInferenceTaskTwoPhaseAnnCom(
+                    model_paths[3],
+                    network=VNet(**network_params, n_channels=6),
+                    labels=lavv_labels,
+                    valve_type="lavv",
+                    cardiac_phase_frames=["MS", "MD"],
+                    landmark_labels=["SIC", "ALC", "PMC"],
+                    export_keys=[
+                        'mid-systolic-images',
+                        'mid-diastolic-images',
+                        'mid-systolic-annulus',
+                        'mid-systolic-SIC',
+                        'mid-systolic-ALC',
+                        'mid-systolic-PMC'
+                    ]
+                ),
+            # "Diastolic__Annulus__Commissures":
+            #     TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(model_paths[3],
+            #                                                      UNet(spatial_dims=3,
+            #                                                           in_channels=5,
+            #                                                           out_channels=4,
+            #                                                           channels=(16, 32, 64, 128, 256),
+            #                                                           strides=(2, 2, 2, 2),
+            #                                                           num_res_units=2,
+            #                                                           norm=Norm.BATCH,
+            #                                                           adn_ordering="NDA")
+            #                                                      ),
         }
 
     def init_strategies(self):
