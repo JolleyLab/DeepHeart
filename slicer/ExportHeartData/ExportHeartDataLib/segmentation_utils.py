@@ -1,12 +1,16 @@
 import logging
 
+from collections import OrderedDict
+
 import slicer
 import vtk
 import numpy as np
 
-from ExportHeartDataLib.constants import LEAFLET_ORDER
+from ExportHeartDataLib.constants import LEAFLET_ORDER, LEAFLET_ORDER_CODE_VALUES, LEAFLET_ORDER_CODE_MEANINGS
+from ExportHeartDataLib.exceptions import MissingSegmentsError, MultipleSegmentsForCodeValueError
 
-from typing import Optional
+
+from typing import Optional, List, Dict
 
 
 def getAllSegmentNames(segmentationNode):
@@ -244,3 +248,79 @@ def isSorted(expectedOrder : list, currentOrder : list) -> bool:
   :return: true if ordered, otherwise false
   """
   return all(expectedOrder[i] in currentOrder[i] for i in range(len(expectedOrder)))
+
+
+def getSegmentIDsMatchingValveType(segmentationNode: slicer.vtkMRMLSegmentationNode, valveType: str):
+  """ get a list of segment ids that match terminology codes required by the provided valve type
+
+  :param segmentationNode: segmentation node to retrieve matching segment ids from
+  :param valveType: valve type to use for retrieving required segment codes
+  :return: list of segment ids
+  """
+  requiredCodeValues = LEAFLET_ORDER_CODE_VALUES[valveType]
+  requiredCodeMeanings = LEAFLET_ORDER_CODE_MEANINGS[valveType]
+  requiredCodes = {codeValue: codeMeaning for codeValue, codeMeaning in zip(requiredCodeValues, requiredCodeMeanings)}
+  return getSegmentIDsMatchingTerminologyCodes(segmentationNode, requiredCodes)
+
+
+def getSegmentIDsMatchingTerminologyCodes(segmentationNode: slicer.vtkMRMLSegmentationNode, requiredCodes: Dict[str,str]):
+  """ Retrieves a list of terminology matching segment ids in requested order
+
+  :param segmentationNode: segmentation node to retrieve matching segment ids from
+  :param requiredCodes: dict of codeValue:codeMeaning
+  :return: list of segment ids if successful
+  """
+  allCodeValues = getAllTerminologyTypeCodeValues(segmentationNode)
+  filteredCodeValues = []
+  for codeValue, codeMeaning in requiredCodes.items():
+    if not codeValue in allCodeValues:
+      raise MissingSegmentsError(f"Could not find requested segment with assigned terminology {codeMeaning} ({codeValue})")
+    segmentIDs = allCodeValues[codeValue]
+    if len(segmentIDs) > 1:
+      raise MultipleSegmentsForCodeValueError(
+        f"Found multiple segments ({segmentIDs}) with same terminology {codeMeaning} ({codeValue}) assigned."
+      )
+    filteredCodeValues.append(segmentIDs[0])
+
+  return filteredCodeValues
+
+
+def getAllTerminologyTypeCodeValues(segmentationNode: slicer.vtkMRMLSegmentationNode) -> OrderedDict[str, List]:
+  """ iterates over all segments and returns a dictionary of code value and a list of segment ids (if multiple)
+
+  the same code value can be assigned to multiple segments
+
+  :return: dict of codeValue: [segment id]
+  """
+  codeValues = OrderedDict()
+  for segment, segmentID in zip(getAllSegments(segmentationNode), getAllSegmentIDs(segmentationNode)):
+    codeValue = getTerminologyTypeCodeValue(segment)
+    if not codeValue in codeValues:
+      codeValues[codeValue] = []
+    codeValues[codeValue].append(segmentID)
+  return codeValues
+
+
+def getTerminologyTypeCodeValue(segment: slicer.vtkSegment) -> str:
+  terminologyEntry = getTerminologyEntryFromSegment(segment)
+  return terminologyEntry.GetTypeObject().GetCodeValue()
+
+
+def getTerminologyTypeCodeMeaning(segmentationNode: slicer.vtkMRMLSegmentationNode, segmentId: str) -> str:
+  segment = segmentationNode.GetSegmentation().GetSegment(segmentId)
+  terminologyEntry = getTerminologyEntryFromSegment(segment)
+  return terminologyEntry.GetTypeObject().GetCodeMeaning()
+
+
+def getTerminologyEntryFromSegment(segment: slicer.vtkSegment):
+  """ Read terminology saved for provided segment into vtkSlicerTerminologyEntry
+
+  :param segment: segment to retrieve terminology entry from
+  :return: vtkSlicerTerminologyEntry
+  """
+  terminologyEntry = slicer.vtkSlicerTerminologyEntry()
+  tag = vtk.mutable("")
+  segment.GetTag(segment.GetTerminologyEntryTagName(), tag)
+  terminologyLogic = slicer.modules.terminologies.logic()
+  terminologyLogic.DeserializeTerminologyEntry(tag, terminologyEntry)
+  return terminologyEntry

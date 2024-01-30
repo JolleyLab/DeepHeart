@@ -3,6 +3,7 @@ import logging
 import slicer
 from ExportHeartDataLib.constants import APPLICATION_NAME
 from ExportHeartDataLib.summary import ExportSummary
+from ExportHeartDataLib.exceptions import NoAssociatedFrameNumberFound
 
 
 class ExportBuilder(object):
@@ -37,14 +38,11 @@ class ExportItem(ABC):
   referenceVolumeNode = None
   probeToRasTransform = None
 
-  class NoAssociatedFrameNumberFound(Exception):
-    pass
-
   @classmethod
   def getAssociatedFrameNumber(cls, valveModel):
     frameNumber = valveModel.getValveVolumeSequenceIndex()
     if frameNumber == -1:
-      raise cls.NoAssociatedFrameNumberFound(f"No associated frame number found for {valveModel.getCardiacCyclePhase()}")
+      raise NoAssociatedFrameNumberFound(f"No associated frame number found for {valveModel.getCardiacCyclePhase()}")
     return frameNumber
 
   @classmethod

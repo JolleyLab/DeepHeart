@@ -83,7 +83,6 @@ class Segmentation(ExportItem):
        SegmentationHelper.hasEmptySegments(segmentationNode):
       self.getLogger().debug(f"Segmentation for phase {self.phase} empty. Skipping.")
       return
-    SegmentationHelper.checkAndSortSegments(segmentationNode, self._valveModel.getValveType())
     # Smoothing
     segmentationNode.SetDisplayVisibility(True)
     SegmentationHelper.postProcessSegmentation(segmentationNode, removeIslands=True) #, smoothingFactor=0.3)
@@ -98,18 +97,18 @@ class Segmentation(ExportItem):
 
   def _saveSegmentsIntoSeparateFiles(self, segmentationNode, outputDirectory):
     segmentationsLogic = slicer.modules.segmentations.logic()
-    for segmentID in SegmentationHelper.getAllSegmentIDs(segmentationNode):
+    for segmentID in SegmentationHelper.getSegmentIDsMatchingValveType(segmentationNode, self._valveModel.getValveType()):
       labelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
-      SegmentationHelper.showOnlySegmentWithSegmentID(segmentationNode, segmentID)
-      segmentationsLogic.ExportVisibleSegmentsToLabelmapNode(segmentationNode, labelNode, self.referenceVolumeNode)
+      segmentationsLogic.ExportSegmentsToLabelmapNode(segmentationNode, [segmentID], labelNode, self.referenceVolumeNode)
       segmentName = segmentationNode.GetSegmentation().GetSegment(segmentID).GetName()
       filename = f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}_{segmentName.replace(' ', '_')}.nii.gz"
       self.saveNode(labelNode, outputDirectory / filename, f"{PHASES_DIRECTORY_MAPPING[self.phase]}-segmentation")
 
   def _saveSegmentsIntoSingleFile(self, segmentationNode, outputDirectory):
-    SegmentationHelper.showOnlySegmentsWithKeywordInName(segmentationNode, keyword="leaflet")
-    labelNode = SegmentationHelper.createLabelNodeFromVisibleSegments(segmentationNode, self.referenceVolumeNode,
-                                                                      "LeafletSegmentation")
+    segmentIDs = SegmentationHelper.getSegmentIDsMatchingValveType(segmentationNode, self._valveModel.getValveType())
+    labelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "LeafletSegmentation")
+    segmentationsLogic = slicer.modules.segmentations.logic()
+    segmentationsLogic.ExportSegmentsToLabelmapNode(segmentationNode, segmentIDs, labelNode, self.referenceVolumeNode)
     self.saveNode(labelNode, outputDirectory / f"{self.prefix}_f{self.getAssociatedFrameNumber(self._valveModel)}.nii.gz",
                   f"{PHASES_DIRECTORY_MAPPING[self.phase]}-segmentation")
 

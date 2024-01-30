@@ -6,6 +6,7 @@ set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   ExportHeartDataLib/__init__
   ExportHeartDataLib/base
+  ExportHeartDataLib/exceptions
   ExportHeartDataLib/constants
   ExportHeartDataLib/export
   ExportHeartDataLib/items
