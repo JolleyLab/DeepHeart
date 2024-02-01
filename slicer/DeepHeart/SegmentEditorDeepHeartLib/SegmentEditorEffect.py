@@ -308,7 +308,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     self.updateProgress(0)
 
-    with TemporaryDirectory() as temp_dir:
+    with TemporaryDirectory(dir=slicer.app.temporaryPath) as temp_dir:
       result_file = None
       try:
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
@@ -342,7 +342,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             segType = getSegmentTerminologyByName(terminologyName, segmentName)
             if not segType:
               logging.info(f"No terminology entry found for segment with name {segmentName}. Using default colors.")
-            segment.SetColor(np.array(segType.GetRecommendedDisplayRGBValue()) / 255.0)
+            else:
+              segment.SetColor(np.array(segType.GetRecommendedDisplayRGBValue()) / 255.0)
 
             # TODO: apply SlicerHeart terminology!
             tagName = slicer.vtkSegment.GetTerminologyEntryTagName()
@@ -534,4 +535,4 @@ def getSegmentTerminologyByName(terminologyName, name):
     tlogic.GetNthTypeInTerminologyCategory(terminologyName, cat, idx, segType)
     if segType.GetCodeMeaning() == name:
       return segType
-  raise None
+  return None
