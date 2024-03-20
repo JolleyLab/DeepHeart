@@ -29,17 +29,17 @@ LEAFLET_ORDER = {
 
 LEAFLET_ORDER_CODE_VALUES = {
   "mitral": ["sh-leaflet-mv-a", "sh-leaflet-mv-p"],
-  "tricuspid": ["sh-leaflet-tcv-a", "sh-leaflet-tcv-p", "sh-leaflet-tcv-s"],
+  "tricuspid": ["sh-leaflet-tv-a", "sh-leaflet-tv-p", "sh-leaflet-tv-s"],
   "cavc": ["sh-leaflet-cavc-sb", "sh-leaflet-cavc-rm", "sh-leaflet-cavc-ib", "sh-leaflet-cavc-lm"],
-  "lavv": ["sh-leaflet-cavc-lm", "sh-leaflet-cavc-sb", "sh-leaflet-cavc-ib"]
+  "lavv": ["sh-leaflet-lavv-lm", "sh-leaflet-lavv-sb", "sh-leaflet-lavv-ib"]
 }
 
 
 LEAFLET_ORDER_CODE_MEANINGS = {
   "mitral": ["mitral anterior leaflet", "mitral posterior leaflet"],
   "tricuspid": ["tricuspid anterior leaflet", "tricuspid posterior leaflet", "tricuspid septal leaflet"],
-  "cavc": ["superior bridging leaflet", "right mural leaflet", "inferior bridging leaflet", "left mural leaflet"],
-  "lavv": ["left mural leaflet", "superior bridging leaflet", "inferior bridging leaflet"]
+  "cavc": ["cavc superior bridging leaflet", "cavc right mural leaflet", "cavc inferior bridging leaflet", "cavc left mural leaflet"],
+  "lavv": ["lavv left mural leaflet", "lavv superior bridging leaflet", "lavv inferior bridging leaflet"]
 }
 
 
