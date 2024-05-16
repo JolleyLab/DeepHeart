@@ -24,9 +24,8 @@ PROGRESS_VALUES = {
   100: "%p%: Importing Results"
 }
 
-PARAM_DEFAULTS = {
 
-}
+APPLICATION_NAME = 'DeepHeart'
 
 
 class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
@@ -38,7 +37,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       return serverUrl
 
   def __init__(self, scriptedEffect):
-    scriptedEffect.name = 'DeepHeart'
+    scriptedEffect.name = APPLICATION_NAME
     scriptedEffect.perSegment = False # this effect operates on all segments at once (not on a single selected segment)
     scriptedEffect.requireSegments = False # this effect requires segment(s) existing in the segmentation
     AbstractScriptedSegmentEditorEffect.__init__(self, scriptedEffect)
@@ -60,7 +59,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     clonedEffect.setPythonSource(__file__.replace('\\','/'))
     return clonedEffect
 
-  def icon(self, name="DeepHeart.png"):
+  def icon(self, name=f"{APPLICATION_NAME}.png"):
     # It should not be necessary to modify this method
     iconPath = self.resourcePath(f"Icons/{name}")
     if os.path.exists(iconPath):
@@ -82,7 +81,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.ui.refreshServerInfoButton.setIcon(self.icon("refresh-icon.png"))
 
     settings = qt.QSettings()
-    self.ui.dhServerComboBox.currentText = settings.value("DeepHeart/serverUrl", "http://127.0.0.1:8000")
+    self.ui.dhServerComboBox.currentText = settings.value(f"{APPLICATION_NAME}/serverUrl", "http://reslnjolleyweb01.research.chop.edu:8894")
     self.ui.dhProgressBar.hide()
     self.ui.statusLabel.hide()
 
@@ -93,21 +92,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     self._heartValveSelection = dict()
     self.updateServerUrlGUIFromSettings()
-
-  def initializeParameterNode(self):
-    if self._parameterNode is not None:
-      self._parameterNode = \
-        self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-    self.setParameterNode(self.logic.getParameterNode())
-
-  def setParameterNode(self, inputParameterNode):
-    self._parameterNode = inputParameterNode
-
-    if self._parameterNode is not None:
-      self.logic.setDefaultParameters(inputParameterNode)
-      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-
-    self.updateGUIFromParameterNode()
 
   def onClickFetchInfo(self):
     self.saveServerUrl()
@@ -139,24 +123,14 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   def saveServerUrl(self):
     settings = qt.QSettings()
     serverUrl = self.ui.dhServerComboBox.currentText
-    settings.setValue("DeepHeart/serverUrl", serverUrl)
+    settings.setValue(f"{APPLICATION_NAME}/serverUrl", serverUrl)
     self._updateServerHistory(serverUrl)
     
     self.updateServerUrlGUIFromSettings()
 
-  def updateParameterNodeFromGUI(self, caller=None, event=None):
-    if self._parameterNode is None or self._updatingGUIFromParameterNode:
-      return
-
-    wasModified = self._parameterNode.StartModify()
-
-    # TODO: update info here
-
-    self._parameterNode.EndModify(wasModified)
-
   def _updateServerHistory(self, serverUrl):
     settings = qt.QSettings()
-    serverUrlHistory = settings.value("DeepHeart/serverUrlHistory")
+    serverUrlHistory = settings.value(f"{APPLICATION_NAME}/serverUrlHistory")
     if serverUrlHistory:
       serverUrlHistory = serverUrlHistory.split(";")
     else:
@@ -167,18 +141,18 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       pass
     serverUrlHistory.insert(0, serverUrl)
     serverUrlHistory = serverUrlHistory[:10]  # keep up to first 10 elements
-    settings.setValue("DeepHeart/serverUrlHistory", ";".join(serverUrlHistory))
+    settings.setValue(f"{APPLICATION_NAME}/serverUrlHistory", ";".join(serverUrlHistory))
 
   def updateServerUrlGUIFromSettings(self):
     # Save current server URL to the top of history
     settings = qt.QSettings()
-    serverUrlHistory = settings.value("DeepHeart/serverUrlHistory")
+    serverUrlHistory = settings.value(f"{APPLICATION_NAME}/serverUrlHistory")
 
     wasBlocked = self.ui.dhServerComboBox.blockSignals(True)
     self.ui.dhServerComboBox.clear()
     if serverUrlHistory:
       self.ui.dhServerComboBox.addItems(serverUrlHistory.split(";"))
-    self.ui.dhServerComboBox.setCurrentText(settings.value("DeepHeart/serverUrl"))
+    self.ui.dhServerComboBox.setCurrentText(settings.value(f"{APPLICATION_NAME}/serverUrl"))
     self.ui.dhServerComboBox.blockSignals(wasBlocked)
 
   def createCursor(self, widget):
@@ -319,16 +293,12 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         if result_file:
           labelNode = slicer.util.loadLabelVolume(str(result_file))
 
-          tlogic = slicer.modules.terminologies.logic()
-          terminologyName = tlogic.LoadTerminologyFromFile(HeartValveLib.getTerminologyFile())
-          terminologyEntry = slicer.vtkSlicerTerminologyEntry()
-          terminologyEntry.SetTerminologyContextName(terminologyName)
-
+          terminologyName = self.initSlicerHeartTerminology()
           segmentation = segmentationNode.GetSegmentation()
           numberOfExistingSegments = segmentation.GetNumberOfSegments()
-          slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(labelNode,
-                                                                                    segmentationNode,
-                                                                                    terminologyName)
+          slicer.vtkSlicerSegmentationsModuleLogic().ImportLabelmapToSegmentationNodeWithTerminology(
+            labelNode, segmentationNode, terminologyName
+          )
           slicer.mrmlScene.RemoveNode(labelNode)
 
           numberOfAddedSegments = segmentation.GetNumberOfSegments() - numberOfExistingSegments
@@ -360,6 +330,13 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         if result_file and os.path.exists(result_file):
           os.unlink(result_file)
 
+  def initSlicerHeartTerminology(self):
+    tlogic = slicer.modules.terminologies.logic()
+    terminologyName = tlogic.LoadTerminologyFromFile(HeartValveLib.getTerminologyFile())
+    terminologyEntry = slicer.vtkSlicerTerminologyEntry()
+    terminologyEntry.SetTerminologyContextName(terminologyName)
+    return terminologyName
+
   def _updateModelSelector(self, selector, modelType, valveType):
       self.ui.statusLabel.plainText = ''
       wasSelectorBlocked = selector.blockSignals(True)
@@ -386,12 +363,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
 
 class DeepHeartLogic(ScriptedLoadableModuleLogic):
-
-  @staticmethod
-  def setDefaultParameters(parameterNode, defaults=PARAM_DEFAULTS):
-    for paramName, paramDefaultValue in defaults.items():
-      if not parameterNode.GetParameter(paramName):
-        parameterNode.SetParameter(paramName, str(paramDefaultValue))
 
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
