@@ -13,10 +13,16 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <layout class="QGridLayout" name="serverSettings">
-     <item row="1" column="0">
-      <widget class="QLabel" name="label_3">
+     <item row="0" column="2">
+      <widget class="QPushButton" name="refreshServerInfoButton">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="toolTip">
+        <string>Fetch/Refresh models from Server</string>
+       </property>
        <property name="text">
-        <string>App Name:</string>
+        <string/>
        </property>
       </widget>
      </item>
@@ -30,11 +36,68 @@
        </property>
       </widget>
      </item>
+     <item row="5" column="0" colspan="3">
+      <widget class="QProgressBar" name="dhProgressBar">
+       <property name="value">
+        <number>0</number>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QComboBox" name="dhModelSelector">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="toolTip">
+        <string>Select pre-trained segmentation model</string>
+       </property>
+      </widget>
+     </item>
      <item row="2" column="0">
       <widget class="QLabel" name="label_12">
        <property name="text">
         <string>Model:</string>
        </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="3">
+      <widget class="ctkCollapsibleButton" name="CollapsibleButton">
+       <property name="text">
+        <string>Status</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QPlainTextEdit" name="statusLabel">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>100</height>
+           </size>
+          </property>
+          <property name="textInteractionFlags">
+           <set>Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>MONAI Label server:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1" colspan="2">
+      <widget class="QFrame" name="valveSelectionFrame">
+       <layout class="QFormLayout" name="formLayout"/>
       </widget>
      </item>
      <item row="0" column="1">
@@ -53,74 +116,28 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="1">
-      <widget class="QComboBox" name="dhModelSelector">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="toolTip">
-        <string>Select pre-trained segmentation model</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QPushButton" name="refreshServerInfoButton">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="toolTip">
-        <string>Fetch/Refresh models from Server</string>
-       </property>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_3">
        <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0" colspan="3">
-      <widget class="QProgressBar" name="dhProgressBar">
-       <property name="value">
-        <number>0</number>
+        <string>App Name:</string>
        </property>
       </widget>
      </item>
      <item row="1" column="1" colspan="2">
       <widget class="QComboBox" name="dhAppComboBox"/>
      </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>MONAI Label server:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0" colspan="3">
-      <widget class="QPlainTextEdit" name="statusLabel">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>100</height>
-        </size>
-       </property>
-       <property name="textInteractionFlags">
-        <set>Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1" colspan="2">
-      <widget class="QFrame" name="valveSelectionFrame">
-       <layout class="QFormLayout" name="formLayout"/>
-      </widget>
-     </item>
     </layout>
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

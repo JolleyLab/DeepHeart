@@ -17,11 +17,13 @@ import time
 
 
 PROGRESS_VALUES = {
-  0: "%p%: Initializing",
+  0: "%p%: Idle",
+  10: "%p%: Initializing",
   25: "%p%: Data Preparation",
   50: "%p%: Sending Data",
   75: "%p%: Running Inference",
-  100: "%p%: Importing Results"
+  90: "%p%: Importing Results",
+  100: "%p%: Done"
 }
 
 
@@ -46,7 +48,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       scriptedEffect.requireSegments = False
 
     self.moduleName = "SegmentEditorDeepHeart"
-    self.logic = DeepHeartLogic()
+    self.logic = DeepHeartLogic(progressCallback=self.updateProgress)
 
   def resourcePath(self, filename):
     scriptedModulesPath = os.path.dirname(slicer.util.modulePath(self.moduleName))
@@ -82,8 +84,17 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     settings = qt.QSettings()
     self.ui.dhServerComboBox.currentText = settings.value(f"{APPLICATION_NAME}/serverUrl", "http://reslnjolleyweb01.research.chop.edu:8894")
-    self.ui.dhProgressBar.hide()
-    self.ui.statusLabel.hide()
+
+    self.ui.dhProgressBar.setStyleSheet(
+      """
+       QdhProgressBar {
+         text-align: center;
+       }
+       QdhProgressBar::chunk {
+         background-color: qlineargradient(x0: 0, x2: 1, stop: 0 orange, stop:1 green )
+       }
+       """
+    )
 
     self.ui.refreshServerInfoButton.clicked.connect(self.onClickFetchInfo)
     self.ui.dhServerComboBox.connect("currentIndexChanged(int)", self.onClickFetchInfo)
@@ -115,8 +126,6 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
       No associated HeartValve (SlicerHeart) could be found for selected segmentation node.
       Please use the SlicerHeart infrastructure to be able to continue. 
       """
-      self.ui.statusLabel.show()
-      qt.QTimer.singleShot(10000, lambda: self.ui.statusLabel.hide())
     else:
       self._updateModelSelector(self.ui.dhModelSelector, "DeepHeartSegmentation", valveModel.getValveType())
 
@@ -167,23 +176,10 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
   def updateProgress(self, value):
     self.ui.dhProgressBar.setValue(value)
-    self.ui.dhProgressBar.setStyleSheet(
-     """
-      QdhProgressBar {
-        text-align: center;
-      }
-      QdhProgressBar::chunk {
-        background-color: qlineargradient(x0: 0, x2: 1, stop: 0 orange, stop:1 green )
-      }
-      """
-    )
-
     self.ui.dhProgressBar.setFormat(PROGRESS_VALUES[value])
+    if value == 100: # reset progressbar after 10sec
+      qt.QTimer.singleShot(10000, lambda: self.ui.dhProgressBar.reset())
     slicer.app.processEvents()
-    if value == 100:
-      self.ui.dhProgressBar.hide()
-    else:
-      self.ui.dhProgressBar.show()
 
   def onSegmentationModelSelected(self):
     segmentationModelIndex = self.ui.dhModelSelector.currentIndex
@@ -261,7 +257,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     heartValves = [selector.currentNode() for selector in selectors]
     if any(hv is None for hv in heartValves):
       slicer.util.errorDisplay("Missing phases. Please check the inputs.")
-      self.updateProgress(100)
+      self.updateProgress(0)
       return
 
     from HeartValveLib.helpers import getValvePhaseShortName
@@ -280,101 +276,87 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
               "Do you want to continue with the currently selected heart valve(s)?"):
         return
 
-    self.updateProgress(0)
+    self.updateProgress(10)
 
     with TemporaryDirectory(dir=slicer.app.temporaryPath) as temp_dir:
       result_file = None
       try:
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-        self.updateProgress(25)
-
-        image_in = self.logic.preprocessSceneData(heartValves, modelName, temp_dir)
-        result_file = self.logic.infer(image_in, serverUrl, modelName, progressCallback=self.updateProgress)
-        if result_file:
-          labelNode = slicer.util.loadLabelVolume(str(result_file))
-
-          terminologyName = self.initSlicerHeartTerminology()
-          segmentation = segmentationNode.GetSegmentation()
-          numberOfExistingSegments = segmentation.GetNumberOfSegments()
-          slicer.vtkSlicerSegmentationsModuleLogic().ImportLabelmapToSegmentationNodeWithTerminology(
-            labelNode, segmentationNode, terminologyName
-          )
-          slicer.mrmlScene.RemoveNode(labelNode)
-
-          numberOfAddedSegments = segmentation.GetNumberOfSegments() - numberOfExistingSegments
-          addedSegmentIds = [
-            segmentation.GetNthSegmentID(numberOfExistingSegments + i) for i in range(numberOfAddedSegments)
-          ]
-          model = self.logic.models[modelName]
-          for segmentId, segmentName in zip(addedSegmentIds, model["labels"]):
-            segment = segmentation.GetSegment(segmentId)
-            segment.SetName(segmentName)
-            segType = getSegmentTerminologyByName(terminologyName, segmentName)
-            if not segType:
-              logging.info(f"No terminology entry found for segment with name {segmentName}. Using default colors.")
-            else:
-              segment.SetColor(np.array(segType.GetRecommendedDisplayRGBValue()) / 255.0)
-
-            # TODO: apply SlicerHeart terminology!
-            tagName = slicer.vtkSegment.GetTerminologyEntryTagName()
-
+        result_file = self.logic.infer(heartValves, serverUrl, modelName, temp_dir)
+        self.updateProgress(90)
+        self.importInferenceResults(modelName, result_file, segmentationNode)
+        self.updateProgress(100)
       except Exception as exc:
         import traceback
         traceback.print_exc()
         slicer.util.errorDisplay(
           "Failed to run inference in MONAI Label Server", detailedText=traceback.format_exc()
         )
-        self.updateProgress(100)
+        self.updateProgress(0)
       finally:
         qt.QApplication.restoreOverrideCursor()
         if result_file and os.path.exists(result_file):
           os.unlink(result_file)
 
-  def initSlicerHeartTerminology(self):
-    tlogic = slicer.modules.terminologies.logic()
-    terminologyName = tlogic.LoadTerminologyFromFile(HeartValveLib.getTerminologyFile())
-    terminologyEntry = slicer.vtkSlicerTerminologyEntry()
-    terminologyEntry.SetTerminologyContextName(terminologyName)
-    return terminologyName
+  def importInferenceResults(self, modelName, result_file, segmentationNode):
+    labelNode = slicer.util.loadLabelVolume(str(result_file))
+    terminologyName = slicer.modules.terminologies.logic().LoadTerminologyFromFile(HeartValveLib.getTerminologyFile())
+    segmentation = segmentationNode.GetSegmentation()
+    numberOfExistingSegments = segmentation.GetNumberOfSegments()
+    slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(
+      labelNode, segmentationNode, terminologyName
+    )
+    slicer.mrmlScene.RemoveNode(labelNode)
+    numberOfAddedSegments = segmentation.GetNumberOfSegments() - numberOfExistingSegments
+    addedSegmentIds = [
+      segmentation.GetNthSegmentID(numberOfExistingSegments + i) for i in range(numberOfAddedSegments)
+    ]
+    model = self.logic.models[modelName]
+    for segmentId, segmentName in zip(addedSegmentIds, model["labels"]):
+      segment = segmentation.GetSegment(segmentId)
+      segment.SetName(segmentName)
+
+      segmentTerminologyTag, segType = getTerminologyTagAndTypeBySegmentName(terminologyName, segmentName)
+      if segmentTerminologyTag:
+        segment.SetTag(segment.GetTerminologyEntryTagName(), segmentTerminologyTag)
+        segment.SetColor(np.array(segType.GetRecommendedDisplayRGBValue()) / 255.0)
+      else:
+        logging.info(f"No terminology entry found for segment with name {segmentName}. Using default colors.")
 
   def _updateModelSelector(self, selector, modelType, valveType):
-      self.ui.statusLabel.plainText = ''
-      wasSelectorBlocked = selector.blockSignals(True)
-      selector.clear()
-      num_eligible = 0
-      for model_name, model in self.logic.models.items():
-          if model["type"] == modelType and model["valve_type"] == valveType:
-              selector.addItem(model_name)
-              selector.setItemData(selector.count - 1, model["description"], qt.Qt.ToolTipRole)
-              num_eligible += 1
-      selector.blockSignals(wasSelectorBlocked)
-      self.onSegmentationModelSelected()
-      if not num_eligible:
-        msg = f"No eligible models were found for current valve type: {valveType}.\t\n"
-      else:
-        msg = f"Found {num_eligible} eligible models for current valve type: {valveType}.\t\n"
-      msg += "-----------------------------------------------------\t\n"
-      msg += f"Total Models Available:  {len(self.logic.models)}\t\n"
-      msg += "-----------------------------------------------------\t\n"
-
-      self.ui.statusLabel.plainText = msg
-      self.ui.statusLabel.show()
-      qt.QTimer.singleShot(10000, lambda: self.ui.statusLabel.hide())
+    self.ui.statusLabel.plainText = ''
+    wasSelectorBlocked = selector.blockSignals(True)
+    selector.clear()
+    for model_name, model in self.logic.models.items():
+      if model["type"] == modelType and model["valve_type"] == valveType:
+        selector.addItem(model_name)
+        selector.setItemData(selector.count - 1, model["description"], qt.Qt.ToolTipRole)
+    selector.blockSignals(wasSelectorBlocked)
+    self.onSegmentationModelSelected()
+    if not selector.count:
+      msg = f"No eligible models were found for current valve type: {valveType}.\t\n"
+    else:
+      msg = f"Found {selector.count} eligible models for current valve type: {valveType}.\t\n"
+    msg += "-----------------------------------------------------\t\n"
+    msg += f"Total Models Available:  {len(self.logic.models)}\t\n"
+    msg += "-----------------------------------------------------\t\n"
+    self.ui.statusLabel.plainText = msg
 
 
 class DeepHeartLogic(ScriptedLoadableModuleLogic):
 
-  def __init__(self):
+  def __init__(self, progressCallback=None):
     ScriptedLoadableModuleLogic.__init__(self)
-    self.logic = MONAILabelLogic()
+    self.monaiLabelLogic = MONAILabelLogic()
     self.models = OrderedDict()
+    self.progressCallback = progressCallback
 
   def fetchInfo(self, serverUrl):
     self.models = OrderedDict()
     try:
       start = time.time()
-      self.logic.setServer(serverUrl)
-      info = self.logic.info()
+      self.monaiLabelLogic.setServer(serverUrl)
+      info = self.monaiLabelLogic.info()
       logging.info("Time consumed by fetch info: {0:3.1f}".format(time.time() - start))
       self._updateModels(info["models"])
       return info
@@ -398,25 +380,25 @@ class DeepHeartLogic(ScriptedLoadableModuleLogic):
       logging.debug("{} = {}".format(k, model_type))
       self.models[k] = v
 
-  def infer(self, image_in, serverUrl, modelName, progressCallback):
-    progressCallback(50)
+  def infer(self, heartValves, serverUrl, modelName, temp_dir):
+    self.progressCallback(25)
+
+    image_in = self.preprocessSceneData(heartValves, modelName, temp_dir)
+    self.progressCallback(50)
     client = MONAILabelClient(server_url=serverUrl)
     sessionId = client.create_session(image_in)["session_id"]
 
-    progressCallback(75)
+    self.progressCallback(75)
     result_file, params = client.infer(model=modelName,
                                        image_id=image_in,
                                        params={},
                                        session_id=sessionId)
-
-    progressCallback(100)
-
     return result_file
 
   def preprocessSceneData(self, heartValves, modelName, temp_dir):
     """
     :param heartValves: heart valve model to use as reference frame
-    :param modelConfig: model configuration as stored on the MONAI server
+    :param modelName: name of the selected model
     :param temp_dir: directory to temporarily export data to
     :return: prepared inference model input volume (4D)
     """
@@ -497,14 +479,21 @@ def _stackVolumes(volumes: list, out_dir: str):
   return in_file
 
 
-def getSegmentTerminologyByName(terminologyName, name):
+def getTerminologyTagAndTypeBySegmentName(terminologyName, name):
+  """ Returns serialized terminology tag and in addition the terminology type object for color """
   tlogic = slicer.modules.terminologies.logic()
-  cat = slicer.vtkSlicerTerminologyCategory()
-  for cadIdx in range(tlogic.GetNumberOfCategoriesInTerminology(terminologyName)):
-    tlogic.GetNthCategoryInTerminology(terminologyName, cadIdx, cat)
-    segType = slicer.vtkSlicerTerminologyType()
-    for idx in range(tlogic.GetNumberOfTypesInTerminologyCategory(terminologyName, cat)):
-      tlogic.GetNthTypeInTerminologyCategory(terminologyName, cat, idx, segType)
-      if segType.GetCodeMeaning() == name:
-        return segType
-  return None
+  category = slicer.vtkSlicerTerminologyCategory()
+  for categoryIdx in range(tlogic.GetNumberOfCategoriesInTerminology(terminologyName)):
+    tlogic.GetNthCategoryInTerminology(terminologyName, categoryIdx, category)
+    termType = slicer.vtkSlicerTerminologyType()
+    for typeIdx in range(tlogic.GetNumberOfTypesInTerminologyCategory(terminologyName, category)):
+      tlogic.GetNthTypeInTerminologyCategory(terminologyName, category, typeIdx, termType)
+      if termType.GetCodeMeaning() == name:
+        segmentTerminologyTag = tlogic.SerializeTerminologyEntry(
+          terminologyName,
+          category.GetCodeValue(), category.GetCodingSchemeDesignator(), category.GetCodeMeaning(),
+          termType.GetCodeValue(), termType.GetCodingSchemeDesignator(), termType.GetCodeMeaning(),
+          "", "", "", "", "", "", "", "", "", ""
+        )
+        return segmentTerminologyTag, termType
+  return None, None
