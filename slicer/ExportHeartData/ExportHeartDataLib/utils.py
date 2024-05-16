@@ -161,7 +161,7 @@ def getResampledScalarVolume(inputVolume, referenceVolume, interpolation="Linear
             'outputVolume': outputVolume,
             'interpolationMode': interpolation}
   # Exporter.LOGGER.debug('About to run BRAINSResample CLI with those params: %s' % params)
-  slicer.cli.run(slicer.modules.brainsresample, None, params, wait_for_completion=True)
+  slicer.cli.run(slicer.modules.brainsresample, None, params, wait_for_completion=True, update_display=False)
   return outputVolume
 
 
