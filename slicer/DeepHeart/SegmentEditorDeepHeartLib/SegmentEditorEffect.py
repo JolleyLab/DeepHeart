@@ -529,10 +529,11 @@ def _stackVolumes(volumes: list, out_dir: str):
 def getSegmentTerminologyByName(terminologyName, name):
   tlogic = slicer.modules.terminologies.logic()
   cat = slicer.vtkSlicerTerminologyCategory()
-  tlogic.GetNthCategoryInTerminology(terminologyName, 0, cat)
-  segType = slicer.vtkSlicerTerminologyType()
-  for idx in range(tlogic.GetNumberOfTypesInTerminologyCategory(terminologyName, cat)):
-    tlogic.GetNthTypeInTerminologyCategory(terminologyName, cat, idx, segType)
-    if segType.GetCodeMeaning() == name:
-      return segType
+  for cadIdx in range(tlogic.GetNumberOfCategoriesInTerminology(terminologyName)):
+    tlogic.GetNthCategoryInTerminology(terminologyName, cadIdx, cat)
+    segType = slicer.vtkSlicerTerminologyType()
+    for idx in range(tlogic.GetNumberOfTypesInTerminologyCategory(terminologyName, cat)):
+      tlogic.GetNthTypeInTerminologyCategory(terminologyName, cat, idx, segType)
+      if segType.GetCodeMeaning() == name:
+        return segType
   return None
