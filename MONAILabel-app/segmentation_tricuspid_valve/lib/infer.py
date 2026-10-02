@@ -12,7 +12,7 @@ from monai.transforms import (
     ToNumpyd,
     SqueezeDimd,
     Activationsd,
-    SplitChanneld,
+    SplitDimd,
     KeepLargestConnectedComponentd,
     NormalizeIntensityd
 )
@@ -124,7 +124,7 @@ class SlicerHeartInferenceTaskSinglePhaseAnn(SlicerHeartInference):
         all_keys = ["image_ms", "image_annulus"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "annulus"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["ms", "annulus"], dim=0, update_meta=False),
             DistanceTransformd(keys=["image_annulus"]),
             ScaleIntensityd(
                 keys=["image_ms"]
@@ -145,7 +145,7 @@ class TricuspidInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
         all_keys = ["image_ms", "image_annulus", "image_apc", "image_asc", "image_psc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "annulus", "apc", "asc", "psc"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["ms", "annulus", "apc", "asc", "psc"], dim=0, update_meta=False),
             DistanceTransformd(keys=["image_annulus", "image_apc", "image_asc", "image_psc"]),
             ScaleIntensityd(
                 keys=["image_ms"],
@@ -169,7 +169,7 @@ class TricuspidInferenceTaskTwoPhaseAnnCom(SlicerHeartInference):
         all_keys = ["image_ms", "image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "apc", "asc", "psc"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "apc", "asc", "psc"], dim=0, update_meta=False),
             DistanceTransformd(keys=["image_annulus", "image_apc", "image_asc", "image_psc"]),
             ScaleIntensityd(
                 keys=["image_ms", "image_md"]
@@ -190,7 +190,7 @@ class LavvInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
         all_keys = ["image_ms", "image_annulus", "image_sic", "image_alc", "image_pmc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "annulus", "sic", "alc", "pmc"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["ms", "annulus", "sic", "alc", "pmc"], dim=0, update_meta=False),
             DistanceTransformd(keys=["image_annulus", "image_sic", "image_alc", "image_pmc"]),
             ScaleIntensityd(
                 keys=["image_ms"],
@@ -214,7 +214,7 @@ class LavvInferenceTaskTwoPhaseAnnCom(SlicerHeartInference):
         all_keys = ["image_ms", "image_md", "image_annulus", "image_sic", "image_alc", "image_pmc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "sic", "alc", "pmc"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["ms", "md", "annulus", "sic", "alc", "pmc"], dim=0, update_meta=False),
             DistanceTransformd(keys=["image_annulus", "image_sic", "image_alc", "image_pmc"]),
             ScaleIntensityd(
                 keys=["image_ms", "image_md"]
@@ -235,7 +235,7 @@ class TricuspidDiastolicInferenceTaskSinglePhaseAnnCom(SlicerHeartInference):
         all_keys = ["image_md", "image_annulus", "image_apc", "image_asc", "image_psc"]
         return [
             LoadImaged(keys=Keys.IMAGE, reader="NibabelReader"),
-            SplitChanneld(keys=Keys.IMAGE, output_postfixes=["md", "annulus", "apc", "asc", "psc"], channel_dim=0),
+            SplitDimd(keys=Keys.IMAGE, output_postfixes=["md", "annulus", "apc", "asc", "psc"], dim=0, update_meta=False),
             DistanceTransformd(keys=all_keys[1:]),
             NormalizeIntensityd(keys="image_md", nonzero=True),
             ScaleIntensityd(
